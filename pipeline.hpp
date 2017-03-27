@@ -15,11 +15,11 @@ public:
     void run();
 private:
     void readInstructions(std::string inst);
-    void IF();  //Instruction Fetch stage
-    void ID();  //Indtruction Decode stage
-    void EX();  //Execution stage
-    void MEM(); //Memory stage
-    void WB();  //Write Back stage
+    void Fetch();  //Instruction Fetch stage
+    void Issue();  //Indtruction Decode stage
+    void Read();  //Execution stage
+    void Exec(); //Memory stage
+    void Write();  //Write Back stage
     Ins instToEnum(std::string ins);
     std::string enumToInst(Ins ins);
     void resetStageMem(Instruction_t &ins);
@@ -45,6 +45,7 @@ private:
     Instruction_t ifStage;
     //ID
     Instruction_t idStage;
+    bool parse;
     //EX
     Instruction_t exStage;
     //MEM

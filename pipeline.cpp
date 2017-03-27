@@ -9,7 +9,7 @@ Pipeline::Pipeline() {
     pc = 0;
     cycles = 0;
     running = true;
-    rgx = std::regex("\\s*([A-Z]+\\.?[A-Z]?)\\s+([A-Z][0-9]|[A-Z]+),?\\s*(-?[A-Z0-9\\(\\)]*),?\\s*([A-Z]*[0-9]*)?");
+    rgx = std::regex("\\s*([a-zA-Z]+\\.?[a-zA-Z]?)\\s+([a-zA-Z][0-9]|[a-zA-Z]+),?\\s*(-?[a-zA-Z0-9\\(\\)]*),?\\s*([a-zA-Z]*[0-9]*)?");
 }
 
 Pipeline::Pipeline(std::string inst, std::string data, std::string config, std::string out) {
@@ -17,7 +17,7 @@ Pipeline::Pipeline(std::string inst, std::string data, std::string config, std::
     pc = 0;
     cycles = 0;
     running = true;
-    rgx = std::regex("\\s*([A-Z]+\\.?[A-Z]?)\\s+([A-Z][0-9]|[A-Z]+),?\\s*(-?[A-Z0-9\\(\\)]*),?\\s*([A-Z]*[0-9]*)?");
+    rgx = std::regex("\\s*([a-zA-Z]+\\.?[a-zA-Z]?)\\s+([a-zA-Z][0-9]|[a-zA-Z]+),?\\s*(-?[a-zA-Z0-9\\(\\)]*),?\\s*([a-zA-Z]*[0-9]*)?");
 }
 
 Pipeline::~Pipeline() {
@@ -65,14 +65,16 @@ void Pipeline::run() {
     resetStageMem(exStage);
     resetStageMem(memStage);
     resetStageMem(wbStage);
+    ifid.wait = false;
     ifid.insBuf.in = NOINST;
+    parse = false;
     while(running) {
         cycles++;
-        IF();
-        ID();
-        EX();
-        MEM();
-        WB();
+        Fetch();
+        Issue();
+        Read();
+        Exec();
+        Write();
         pc++;
         if(pc >= (int)instructions.size()) {
             running = false;
@@ -83,7 +85,7 @@ void Pipeline::run() {
 //If there's not an instruction waiting, read in next instruction
 //Check if the buffer is empty, move instruction out if so
 //    If not empty, instruction in ID stage,
-void Pipeline::IF() {
+void Pipeline::Fetch() {
     //If there's not an instruction sitting here already
     if(ifStage.in == NOINST) {
         std::string line = instructions[pc];
@@ -100,12 +102,12 @@ void Pipeline::IF() {
             std::smatch match;
             if(std::regex_search(line, match, rgx)) {
                 ifStage.in = instToEnum(match[1].str());
-                printf("Match 1: %s, %d\n", match[1].str().c_str(), (int)ifStage.in);
+                // printf("Match 1: %s, %d\n", match[1].str().c_str(), (int)ifStage.in);
                 for(int i = 2; i < (int)match.size(); i++) {    //Skip 0 (whole match)
                     if(!match[i].str().empty()) {
                         ifStage.args.push_back(match[i].str());
                     }
-                    printf("Arg %d: %s\n", i-1, match[i].str().c_str());
+                    // printf("Arg %d: %s\n", i-1, match[i].str().c_str());
                 }
             }
             else {
@@ -127,35 +129,56 @@ void Pipeline::IF() {
     }
 }
 
-//If there's an instruction waiting in the buffer
-void Pipeline::ID() {
-    //TODO: Do this. For now just clear and test IF stage
+//Decode Instruction and check for structural hazards
+//If there's an instruction waiting in the buffer, read it in and wait
+//If an instruction has been read in and hasn't been parsed, do it
+//Otherwise, just wait for the id/ex buffer to be free'd
+void Pipeline::Issue() {
     if(ifid.wait) {
         ifid.wait = false;
         idStage = ifid.insBuf;
+        idStage.IDin = cycles+1;
         //Clear Buffer
         ifid.insBuf.in = NOINST;
     }
 
     if(idStage.in != NOINST) {
-        printf("Inst %s: ", enumToInst(idStage.in).c_str());
-        for(int i = 0; i < (int)idStage.args.size(); i++) {
-            printf("%s, ", idStage.args[i].c_str());
+        if(parse) {
+            //Parse instruction and if next buffer is free push it
+            //TODO: Deal with branching
+            //Loop through each argument
+                //If it's a register, set appropriate reg value
+                //If it's an immediate value, set it
+                //If it's an offset
+
+            parse = false;
         }
-        printf("\nID in: %d\nID out: %d\n\n", idStage.IFin, idStage.IFout);
-        resetStageMem(idStage);
+        if(ifex.insBuf.in == NOINST) {
+            idStage.IDout = cycles;
+            idex.insBuf = idStage;
+            resetStageMem(idStage);
+            idex.wait = true;
+        }
     }
 }
 
-void Pipeline::EX() {
+//Wait until no data hazards, then read operands
+void Pipeline::Read() {
+    //TODO: Print info to test stages
+    printf("Inst %s: ", enumToInst(idStage.in).c_str());
+    for(int i = 0; i < (int)idStage.args.size(); i++) {
+        printf("%s, ", idStage.args[i].c_str());
+    }
+    printf("\nID in: %d\nID out: %d\n\n", idStage.IFin, idStage.IFout);
+}
+
+//Operate on operands
+void Pipeline::Exec() {
 
 }
 
-void Pipeline::MEM() {
-
-}
-
-void Pipeline::WB() {
+//Write results
+void Pipeline::Write() {
 
 }
 

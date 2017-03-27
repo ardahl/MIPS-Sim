@@ -40,8 +40,8 @@ enum Ins {
 //And has variables for each argument and possible parsing of it
 //Not every value is used for every instruction, only the relevant ones are set
 typedef struct InsType {
-    Ins in;
-    std::vector<std::string> args;
+    Ins in;                         //Enum for instruction type
+    std::vector<std::string> args;  //Up to 3 instruction arguments
     int regDest;
     int regSource1;
     int regSource2;
@@ -70,14 +70,17 @@ typedef struct IFIDBuf {
 
 typedef struct IDEXBuf {
     Instruction_t insBuf;
+    bool wait;
 } IDEX_t;
 
 typedef struct EXMEMBuf {
     Instruction_t insBuf;
+    bool wait;
 } EXMEM_t;
 
 typedef struct MEMWBBuf {
     Instruction_t insBuf;
+    bool wait;
 } MEMWB_t;
 
 std::string trim_left(const std::string& str);
