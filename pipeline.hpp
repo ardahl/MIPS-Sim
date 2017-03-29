@@ -35,21 +35,22 @@ private:
     std::regex rgx;
 
     //Buffers between each stage
-    IFID_t ifid;
-    IDEX_t idex;
-    EXMEM_t exmem;
-    MEMWB_t memwb;
+    IFIS_t ifis1;
+    IFIS_t ifis2;
+    ISRD_t isrd1;
+    ISRD_t isrd2;
+    RDEX_t rdex;
+    EXWB_t exwb;
     //Because of stalling we need to keep buffers of each stage so we don't
     //loose the values for the next cycle
     //IF
     Instruction_t ifStage;
-    //ID
-    Instruction_t idStage;
-    bool parse;
-    //EX
+    //Issue
+    Instruction_t isStage;
+    //Read
+    Instruction_t rdStage;
+    //Execute
     Instruction_t exStage;
-    //MEM
-    Instruction_t memStage;
     //WB
     Instruction_t wbStage;
 

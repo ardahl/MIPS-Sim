@@ -32,6 +32,7 @@ enum Ins {
     BNE,
     BEQ,
     HLT,
+    UNKNOWN,    //Used in fetch stage since we don't know what the instruction is yet
     NOINST
 };
 
@@ -40,6 +41,7 @@ enum Ins {
 //And has variables for each argument and possible parsing of it
 //Not every value is used for every instruction, only the relevant ones are set
 typedef struct InsType {
+    std::string line;
     Ins in;                         //Enum for instruction type
     std::vector<std::string> args;  //Up to 3 instruction arguments
     int regDest;
@@ -50,12 +52,12 @@ typedef struct InsType {
     //Timing
     int IFin;
     int IFout;
-    int IDin;
-    int IDout;
+    int ISin;
+    int ISout;
+    int RDin;
+    int RDout;
     int EXin;
     int EXout;
-    int MEMin;
-    int MEMout;
     int WBin;
     int WBout;
     char raw;
@@ -63,25 +65,21 @@ typedef struct InsType {
     char struc;
 } Instruction_t;
 
-typedef struct IFIDBuf {
+typedef struct IFISBuf {
     Instruction_t insBuf;
-    bool wait;
-} IFID_t;
+} IFIS_t;
 
-typedef struct IDEXBuf {
+typedef struct ISRDBuf {
     Instruction_t insBuf;
-    bool wait;
-} IDEX_t;
+} ISRD_t;
 
-typedef struct EXMEMBuf {
+typedef struct RDEXBuf {
     Instruction_t insBuf;
-    bool wait;
-} EXMEM_t;
+} RDEX_t;
 
-typedef struct MEMWBBuf {
+typedef struct EXWBBuf {
     Instruction_t insBuf;
-    bool wait;
-} MEMWB_t;
+} EXWB_t;
 
 std::string trim_left(const std::string& str);
 std::string trim_right(const std::string& str);

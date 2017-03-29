@@ -57,17 +57,19 @@ void Pipeline::readInstructions(std::string file) {
     for(const auto &pair : branches) {
         std::cout << pair.first << ": " << pair.second << "\n";
     }
+    std::cout << "\n";
 }
 
 void Pipeline::run() {
     resetStageMem(ifStage);
-    resetStageMem(idStage);
+    resetStageMem(isStage);
+    resetStageMem(rdStage);
     resetStageMem(exStage);
-    resetStageMem(memStage);
     resetStageMem(wbStage);
-    ifid.wait = false;
-    ifid.insBuf.in = NOINST;
-    parse = false;
+    ifis1.insBuf.in = NOINST;
+    ifis2.insBuf.in = NOINST;
+    isrd1.insBuf.in = NOINST;
+    isrd2.insBuf.in = NOINST;
     while(running) {
         cycles++;
         Fetch();
@@ -76,9 +78,9 @@ void Pipeline::run() {
         Exec();
         Write();
         pc++;
-        if(pc >= (int)instructions.size()) {
-            running = false;
-        }
+        // if(pc >= (int)instructions.size()) {
+        //     running = false;
+        // }
     }
 }
 
@@ -87,7 +89,7 @@ void Pipeline::run() {
 //    If not empty, instruction in ID stage,
 void Pipeline::Fetch() {
     //If there's not an instruction sitting here already
-    if(ifStage.in == NOINST) {
+    if(ifStage.in == NOINST && pc < (int)instructions.size()) {
         std::string line = instructions[pc];
         //strip branch label if exists
         std::string::size_type n;
@@ -95,37 +97,19 @@ void Pipeline::Fetch() {
             line = line.substr(n+1, std::string::npos);
         }
         line = trim(line);
-        if(line == "HLT") { //Special Case for Halt
-            ifStage.in = HLT;
-        }
-        else {  //Everything Else
-            std::smatch match;
-            if(std::regex_search(line, match, rgx)) {
-                ifStage.in = instToEnum(match[1].str());
-                // printf("Match 1: %s, %d\n", match[1].str().c_str(), (int)ifStage.in);
-                for(int i = 2; i < (int)match.size(); i++) {    //Skip 0 (whole match)
-                    if(!match[i].str().empty()) {
-                        ifStage.args.push_back(match[i].str());
-                    }
-                    // printf("Arg %d: %s\n", i-1, match[i].str().c_str());
-                }
-            }
-            else {
-                printf("Line %s: No Match\n", line.c_str());
-            }
-        }
+        ifStage.line = line;
         ifStage.IFin = cycles;
+        ifStage.in = UNKNOWN;
     }
     else {  //If we're waiting, mark it as a structural hazard
         ifStage.struc = 'Y';
     }
 
     //Move to the buffer.
-    if(ifid.insBuf.in == NOINST) {
+    if(ifis1.insBuf.in == NOINST) {
         ifStage.IFout = cycles;
-        ifid.insBuf = ifStage;
+        ifis1.insBuf = ifStage;
         resetStageMem(ifStage);
-        ifid.wait = true;
     }
 }
 
@@ -134,42 +118,78 @@ void Pipeline::Fetch() {
 //If an instruction has been read in and hasn't been parsed, do it
 //Otherwise, just wait for the id/ex buffer to be free'd
 void Pipeline::Issue() {
-    if(ifid.wait) {
-        ifid.wait = false;
-        idStage = ifid.insBuf;
-        idStage.IDin = cycles+1;
+    if(ifis2.insBuf.in == UNKNOWN && isStage.in == NOINST) {
+        isStage = ifis2.insBuf;
+        isStage.ISin = cycles;
         //Clear Buffer
-        ifid.insBuf.in = NOINST;
+        ifis2.insBuf.in = NOINST;
     }
-
-    if(idStage.in != NOINST) {
-        if(parse) {
-            //Parse instruction and if next buffer is free push it
-            //TODO: Deal with branching
-            //Loop through each argument
-                //If it's a register, set appropriate reg value
-                //If it's an immediate value, set it
-                //If it's an offset
-
-            parse = false;
+    if(isStage.in != NOINST) {
+        //Parse instruction and if next buffer is free push it
+        //TODO: Deal with branching
+        //Loop through each argument
+            //If it's a register, set appropriate reg value
+            //If it's an immediate value, set it
+            //If it's an offset
+        std::string line = isStage.line;
+        if(line == "HLT") { //Special Case for Halt
+            isStage.in = HLT;
         }
-        if(ifex.insBuf.in == NOINST) {
-            idStage.IDout = cycles;
-            idex.insBuf = idStage;
-            resetStageMem(idStage);
-            idex.wait = true;
+        else {  //Everything Else
+            std::smatch match;
+            if(std::regex_search(line, match, rgx)) {
+                isStage.in = instToEnum(match[1].str());
+                for(int i = 2; i < (int)match.size(); i++) {    //Skip 0 (whole match)
+                    if(!match[i].str().empty()) {
+                        isStage.args.push_back(match[i].str());
+                    }
+                }
+            }
+            else {
+                printf("Line %s: No Match\n", line.c_str());
+            }
         }
+
+        if(isrd1.insBuf.in == NOINST) {
+            isStage.ISout = cycles;
+            isrd1.insBuf = isStage;
+            resetStageMem(isStage);
+            ifis2 = ifis1;
+            ifis1.insBuf.in = NOINST;
+        }
+    }
+    if(ifis1.insBuf.in == UNKNOWN && ifis2.insBuf.in == NOINST) {
+        ifis2 = ifis1;
+        ifis1.insBuf.in = NOINST;
     }
 }
 
 //Wait until no data hazards, then read operands
 void Pipeline::Read() {
-    //TODO: Print info to test stages
-    printf("Inst %s: ", enumToInst(idStage.in).c_str());
-    for(int i = 0; i < (int)idStage.args.size(); i++) {
-        printf("%s, ", idStage.args[i].c_str());
+    if(isrd2.insBuf.in != NOINST && rdStage.in == NOINST) {
+        rdStage = isrd2.insBuf;
+        rdStage.RDin = cycles;
+        //Clear Buffer
+        isrd2.insBuf.in = NOINST;
     }
-    printf("\nID in: %d\nID out: %d\n\n", idStage.IFin, idStage.IFout);
+    if(rdStage.in != NOINST) {
+        rdStage.RDout = cycles;
+        printf("Inst %s: ", enumToInst(rdStage.in).c_str());
+        for(int i = 0; i < (int)rdStage.args.size(); i++) {
+            printf("%s, ", rdStage.args[i].c_str());
+        }
+        printf("\nIF in: %d\nIF out: %d\n", rdStage.IFin, rdStage.IFout);
+        printf("IS in: %d\nIS out: %d\n", rdStage.ISin, rdStage.ISout);
+        printf("RD in: %d\nRD out: %d\n\n", rdStage.RDin, rdStage.RDout);
+        if(rdStage.in == HLT) {
+            running = false;
+        }
+        resetStageMem(rdStage);
+    }
+    if(isrd1.insBuf.in != NOINST && isrd2.insBuf.in == NOINST) {
+        isrd2 = isrd1;
+        isrd1.insBuf.in = NOINST;
+    }
 }
 
 //Operate on operands
@@ -183,7 +203,7 @@ void Pipeline::Write() {
 }
 
 void Pipeline::resetStageMem(Instruction_t &ins) {
-    ins.IFin = ins.IFout = ins.IDin = ins.IDout = ins.EXin = ins.EXout = ins.MEMin = ins.MEMout = ins.WBin = ins.WBout = -1;
+    ins.IFin = ins.IFout = ins.ISin = ins.ISout = ins.RDin = ins.RDout = ins.EXin = ins.EXout = ins.WBin = ins.WBout = -1;
     ins.in = NOINST;
     ins.args.clear();
     ins.regDest = ins.regSource1 = ins.regSource2 = -1;
