@@ -65,11 +65,6 @@ void Pipeline::run() {
     rdStage = NULL;
     exStage = NULL;
     wbStage = NULL;
-    // resetStageMem(ifStage);
-    // resetStageMem(isStage);
-    // resetStageMem(rdStage);
-    // resetStageMem(exStage);
-    // resetStageMem(wbStage);
     ifis1.insBuf = NULL;
     ifis2.insBuf = NULL;
     isrd1.insBuf = NULL;
@@ -95,7 +90,6 @@ void Pipeline::run() {
 //    If not empty, instruction in ID stage,
 void Pipeline::Fetch() {
     //If there's not an instruction sitting here already
-    // if(ifStage.in == NOINST && pc < (int)instructions.size()) {
     if(ifStage == NULL) {
         if(pc < (int)instructions.size()) { //make sure we don't read past the end
             std::string line = instructions[pc];
@@ -118,11 +112,9 @@ void Pipeline::Fetch() {
     }
 
     //Move to the buffer.
-    // if(ifis1.insBuf.in == NOINST) {
     if(ifis1.insBuf == NULL && ifStage != NULL) {
         ifStage->IFout = cycles;
         ifis1.insBuf = ifStage;
-        // resetStageMem(ifStage);
         ifStage = NULL;
     }
 }
@@ -132,12 +124,10 @@ void Pipeline::Fetch() {
 //If an instruction has been read in and hasn't been parsed, do it
 //Otherwise, just wait for the id/ex buffer to be free'd
 void Pipeline::Issue() {
-    // if(ifis2.insBuf.in == UNKNOWN && isStage.in == NOINST) {
     if(ifis2.insBuf != NULL && ifis2.insBuf->in == UNKNOWN && isStage == NULL) {
         isStage = ifis2.insBuf;
         isStage->ISin = cycles;
         //Clear Buffer
-        // ifis2.insBuf.in = NOINST;
         ifis2.insBuf = NULL;
     }
     if(isStage != NULL && isStage->in != NOINST) {
@@ -166,55 +156,38 @@ void Pipeline::Issue() {
             }
         }
 
-        // if(isrd1.insBuf.in == NOINST) {
         if(isrd1.insBuf == NULL) {
             isStage->ISout = cycles;
             isrd1.insBuf = isStage;
-            // resetStageMem(isStage);
             isStage = NULL;
             ifis2 = ifis1;
-            // ifis1.insBuf.in = NOINST;
             ifis1.insBuf = NULL;
         }
     }
-    // if(ifis1.insBuf.in == UNKNOWN && ifis2.insBuf.in == NOINST) {
     if(ifis1.insBuf != NULL && ifis1.insBuf->in == UNKNOWN && ifis2.insBuf == NULL) {
         ifis2 = ifis1;
-        // ifis1.insBuf.in = NOINST;
         ifis1.insBuf = NULL;
     }
 }
 
 //Wait until no data hazards, then read operands
 void Pipeline::Read() {
-    // if(isrd2.insBuf.in != NOINST && rdStage.in == NOINST) {
     if(isrd2.insBuf != NULL && isrd2.insBuf->in != NOINST && rdStage == NULL) {
         rdStage = isrd2.insBuf;
         rdStage->RDin = cycles;
         //Clear Buffer
-        // isrd2.insBuf.in = NOINST;
         isrd2.insBuf = NULL;
     }
-    // if(rdStage.in != NOINST) {
     if(rdStage != NULL && rdStage->in != NOINST) {
         rdStage->RDout = cycles;
-        // printf("Inst %s: ", enumToInst(rdStage->in).c_str());
-        // for(int i = 0; i < (int)rdStage->args.size(); i++) {
-        //     printf("%s, ", rdStage->args[i].c_str());
-        // }
-        // printf("\nIF in: %d\nIF out: %d\n", rdStage->IFin, rdStage->IFout);
-        // printf("IS in: %d\nIS out: %d\n", rdStage->ISin, rdStage->ISout);
-        // printf("RD in: %d\nRD out: %d\n\n", rdStage->RDin, rdStage->RDout);
         if(rdStage->in == HLT) {
             running = false;
         }
-        // resetStageMem(rdStage);
         rdStage = NULL;
     }
     // if(isrd1.insBuf.in != NOINST && isrd2.insBuf.in == NOINST) {
     if(isrd1.insBuf != NULL && isrd1.insBuf->in != NOINST && isrd2.insBuf == NULL) {
         isrd2 = isrd1;
-        // isrd1.insBuf.in = NOINST;
         isrd1.insBuf = NULL;
     }
 }
@@ -236,9 +209,16 @@ void Pipeline::printCycle() {
     for(int i = 0; i < (int)fetched.size(); i++) {
         Instruction_t *struc = fetched[i];
         print(enumToInst(struc->in), 8);
-        std::string fetch = std::to_string(struc->IFin) + "," + std::to_string(struc->IFout);
-        std::string issue = std::to_string(struc->ISin) + "," + std::to_string(struc->ISout);
-        std::string read = std::to_string(struc->RDin) + "," + std::to_string(struc->RDout);
+        std::string fetch, issue, read;
+        if(struc->IFin != -1) {
+            fetch = std::to_string(struc->IFin) + "," + std::to_string(struc->IFout);
+        }
+        if(struc->ISin != -1) {
+            issue = std::to_string(struc->ISin) + "," + std::to_string(struc->ISout);
+        }
+        if(struc->RDin != -1) {
+            read = std::to_string(struc->RDin) + "," + std::to_string(struc->RDout);
+        }
         print(fetch, 8);
         print(issue, 8);
         print(read, 8);
