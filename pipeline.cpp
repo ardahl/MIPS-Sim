@@ -1,5 +1,4 @@
 #include "pipeline.hpp"
-#include <iostream>     //cout
 #include <cstdlib>      //exit
 #include <cstdio>       //printf
 
@@ -61,15 +60,24 @@ void Pipeline::readInstructions(std::string file) {
 }
 
 void Pipeline::run() {
-    resetStageMem(ifStage);
-    resetStageMem(isStage);
-    resetStageMem(rdStage);
-    resetStageMem(exStage);
-    resetStageMem(wbStage);
-    ifis1.insBuf.in = NOINST;
-    ifis2.insBuf.in = NOINST;
-    isrd1.insBuf.in = NOINST;
-    isrd2.insBuf.in = NOINST;
+    ifStage = NULL;
+    isStage = NULL;
+    rdStage = NULL;
+    exStage = NULL;
+    wbStage = NULL;
+    // resetStageMem(ifStage);
+    // resetStageMem(isStage);
+    // resetStageMem(rdStage);
+    // resetStageMem(exStage);
+    // resetStageMem(wbStage);
+    ifis1.insBuf = NULL;
+    ifis2.insBuf = NULL;
+    isrd1.insBuf = NULL;
+    isrd2.insBuf = NULL;
+    rdex1.insBuf = NULL;
+    rdex2.insBuf = NULL;
+    exwb1.insBuf = NULL;
+    exwb2.insBuf = NULL;
     while(running) {
         cycles++;
         Fetch();
@@ -77,10 +85,8 @@ void Pipeline::run() {
         Read();
         Exec();
         Write();
+        printCycle();
         pc++;
-        // if(pc >= (int)instructions.size()) {
-        //     running = false;
-        // }
     }
 }
 
@@ -89,27 +95,35 @@ void Pipeline::run() {
 //    If not empty, instruction in ID stage,
 void Pipeline::Fetch() {
     //If there's not an instruction sitting here already
-    if(ifStage.in == NOINST && pc < (int)instructions.size()) {
-        std::string line = instructions[pc];
-        //strip branch label if exists
-        std::string::size_type n;
-        if((n=line.find(":")) != std::string::npos) {
-            line = line.substr(n+1, std::string::npos);
+    // if(ifStage.in == NOINST && pc < (int)instructions.size()) {
+    if(ifStage == NULL) {
+        if(pc < (int)instructions.size()) { //make sure we don't read past the end
+            std::string line = instructions[pc];
+            //strip branch label if exists
+            std::string::size_type n;
+            if((n=line.find(":")) != std::string::npos) {
+                line = line.substr(n+1, std::string::npos);
+            }
+            line = trim(line);
+            ifStage = new Instruction_t;
+            initInstMemory(&ifStage);
+            ifStage->line = line;
+            ifStage->IFin = cycles;
+            ifStage->in = UNKNOWN;
+            fetched.push_back(ifStage);
         }
-        line = trim(line);
-        ifStage.line = line;
-        ifStage.IFin = cycles;
-        ifStage.in = UNKNOWN;
     }
-    else {  //If we're waiting, mark it as a structural hazard
-        ifStage.struc = 'Y';
+    else {  //If we're waiting with an instruction, mark it as a structural hazard
+        ifStage->struc = 'Y';
     }
 
     //Move to the buffer.
-    if(ifis1.insBuf.in == NOINST) {
-        ifStage.IFout = cycles;
+    // if(ifis1.insBuf.in == NOINST) {
+    if(ifis1.insBuf == NULL && ifStage != NULL) {
+        ifStage->IFout = cycles;
         ifis1.insBuf = ifStage;
-        resetStageMem(ifStage);
+        // resetStageMem(ifStage);
+        ifStage = NULL;
     }
 }
 
@@ -118,30 +132,32 @@ void Pipeline::Fetch() {
 //If an instruction has been read in and hasn't been parsed, do it
 //Otherwise, just wait for the id/ex buffer to be free'd
 void Pipeline::Issue() {
-    if(ifis2.insBuf.in == UNKNOWN && isStage.in == NOINST) {
+    // if(ifis2.insBuf.in == UNKNOWN && isStage.in == NOINST) {
+    if(ifis2.insBuf != NULL && ifis2.insBuf->in == UNKNOWN && isStage == NULL) {
         isStage = ifis2.insBuf;
-        isStage.ISin = cycles;
+        isStage->ISin = cycles;
         //Clear Buffer
-        ifis2.insBuf.in = NOINST;
+        // ifis2.insBuf.in = NOINST;
+        ifis2.insBuf = NULL;
     }
-    if(isStage.in != NOINST) {
+    if(isStage != NULL && isStage->in != NOINST) {
         //Parse instruction and if next buffer is free push it
         //TODO: Deal with branching
         //Loop through each argument
             //If it's a register, set appropriate reg value
             //If it's an immediate value, set it
             //If it's an offset
-        std::string line = isStage.line;
+        std::string line = isStage->line;
         if(line == "HLT") { //Special Case for Halt
-            isStage.in = HLT;
+            isStage->in = HLT;
         }
         else {  //Everything Else
             std::smatch match;
             if(std::regex_search(line, match, rgx)) {
-                isStage.in = instToEnum(match[1].str());
+                isStage->in = instToEnum(match[1].str());
                 for(int i = 2; i < (int)match.size(); i++) {    //Skip 0 (whole match)
                     if(!match[i].str().empty()) {
-                        isStage.args.push_back(match[i].str());
+                        isStage->args.push_back(match[i].str());
                     }
                 }
             }
@@ -150,45 +166,56 @@ void Pipeline::Issue() {
             }
         }
 
-        if(isrd1.insBuf.in == NOINST) {
-            isStage.ISout = cycles;
+        // if(isrd1.insBuf.in == NOINST) {
+        if(isrd1.insBuf == NULL) {
+            isStage->ISout = cycles;
             isrd1.insBuf = isStage;
-            resetStageMem(isStage);
+            // resetStageMem(isStage);
+            isStage = NULL;
             ifis2 = ifis1;
-            ifis1.insBuf.in = NOINST;
+            // ifis1.insBuf.in = NOINST;
+            ifis1.insBuf = NULL;
         }
     }
-    if(ifis1.insBuf.in == UNKNOWN && ifis2.insBuf.in == NOINST) {
+    // if(ifis1.insBuf.in == UNKNOWN && ifis2.insBuf.in == NOINST) {
+    if(ifis1.insBuf != NULL && ifis1.insBuf->in == UNKNOWN && ifis2.insBuf == NULL) {
         ifis2 = ifis1;
-        ifis1.insBuf.in = NOINST;
+        // ifis1.insBuf.in = NOINST;
+        ifis1.insBuf = NULL;
     }
 }
 
 //Wait until no data hazards, then read operands
 void Pipeline::Read() {
-    if(isrd2.insBuf.in != NOINST && rdStage.in == NOINST) {
+    // if(isrd2.insBuf.in != NOINST && rdStage.in == NOINST) {
+    if(isrd2.insBuf != NULL && isrd2.insBuf->in != NOINST && rdStage == NULL) {
         rdStage = isrd2.insBuf;
-        rdStage.RDin = cycles;
+        rdStage->RDin = cycles;
         //Clear Buffer
-        isrd2.insBuf.in = NOINST;
+        // isrd2.insBuf.in = NOINST;
+        isrd2.insBuf = NULL;
     }
-    if(rdStage.in != NOINST) {
-        rdStage.RDout = cycles;
-        printf("Inst %s: ", enumToInst(rdStage.in).c_str());
-        for(int i = 0; i < (int)rdStage.args.size(); i++) {
-            printf("%s, ", rdStage.args[i].c_str());
-        }
-        printf("\nIF in: %d\nIF out: %d\n", rdStage.IFin, rdStage.IFout);
-        printf("IS in: %d\nIS out: %d\n", rdStage.ISin, rdStage.ISout);
-        printf("RD in: %d\nRD out: %d\n\n", rdStage.RDin, rdStage.RDout);
-        if(rdStage.in == HLT) {
+    // if(rdStage.in != NOINST) {
+    if(rdStage != NULL && rdStage->in != NOINST) {
+        rdStage->RDout = cycles;
+        // printf("Inst %s: ", enumToInst(rdStage->in).c_str());
+        // for(int i = 0; i < (int)rdStage->args.size(); i++) {
+        //     printf("%s, ", rdStage->args[i].c_str());
+        // }
+        // printf("\nIF in: %d\nIF out: %d\n", rdStage->IFin, rdStage->IFout);
+        // printf("IS in: %d\nIS out: %d\n", rdStage->ISin, rdStage->ISout);
+        // printf("RD in: %d\nRD out: %d\n\n", rdStage->RDin, rdStage->RDout);
+        if(rdStage->in == HLT) {
             running = false;
         }
-        resetStageMem(rdStage);
+        // resetStageMem(rdStage);
+        rdStage = NULL;
     }
-    if(isrd1.insBuf.in != NOINST && isrd2.insBuf.in == NOINST) {
+    // if(isrd1.insBuf.in != NOINST && isrd2.insBuf.in == NOINST) {
+    if(isrd1.insBuf != NULL && isrd1.insBuf->in != NOINST && isrd2.insBuf == NULL) {
         isrd2 = isrd1;
-        isrd1.insBuf.in = NOINST;
+        // isrd1.insBuf.in = NOINST;
+        isrd1.insBuf = NULL;
     }
 }
 
@@ -202,13 +229,32 @@ void Pipeline::Write() {
 
 }
 
-void Pipeline::resetStageMem(Instruction_t &ins) {
-    ins.IFin = ins.IFout = ins.ISin = ins.ISout = ins.RDin = ins.RDout = ins.EXin = ins.EXout = ins.WBin = ins.WBout = -1;
-    ins.in = NOINST;
-    ins.args.clear();
-    ins.regDest = ins.regSource1 = ins.regSource2 = -1;
-    ins.im = ins.memLoc = -1;
-    ins.raw = ins.waw = ins.struc = 'N';
+void Pipeline::printCycle() {
+    //Loop through every fetched instruction and print out the info
+    printf("Cycle %d\n", cycles);
+    printf("%-8s%-8s%-8s%-8s\n", "Ins", "Fetch", "Issue", "Read");
+    for(int i = 0; i < (int)fetched.size(); i++) {
+        Instruction_t *struc = fetched[i];
+        print(enumToInst(struc->in), 8);
+        std::string fetch = std::to_string(struc->IFin) + "," + std::to_string(struc->IFout);
+        std::string issue = std::to_string(struc->ISin) + "," + std::to_string(struc->ISout);
+        std::string read = std::to_string(struc->RDin) + "," + std::to_string(struc->RDout);
+        print(fetch, 8);
+        print(issue, 8);
+        print(read, 8);
+        std::cout << "\n";
+    }
+    printf("\n");
+}
+
+void Pipeline::initInstMemory(Instruction_t **instruct) {
+    Instruction_t *ins = *instruct;
+    ins->IFin = ins->IFout = ins->ISin = ins->ISout = ins->RDin = ins->RDout = ins->EXin = ins->EXout = ins->WBin = ins->WBout = -1;
+    ins->in = UNKNOWN;
+    ins->args.clear();
+    ins->regDest = ins->regSource1 = ins->regSource2 = -1;
+    ins->im = ins->memLoc = -1;
+    ins->raw = ins->waw = ins->struc = 'N';
 }
 
 Ins Pipeline::instToEnum(std::string ins) {
@@ -345,6 +391,9 @@ std::string Pipeline::enumToInst(Ins ins) {
     }
     else if(ins == BEQ) {
         return "BEQ";
+    }
+    else if(ins == UNKNOWN) {
+        return "UNKNOWN";
     }
     else {
         return "HLT";

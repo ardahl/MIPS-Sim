@@ -3,6 +3,8 @@
 
 #include <string>
 #include <vector>
+#include <iomanip>
+#include <iostream>     //cout
 
 #define DATA_BEGIN 0x100
 #define WORD_SIZE 32
@@ -66,23 +68,28 @@ typedef struct InsType {
 } Instruction_t;
 
 typedef struct IFISBuf {
-    Instruction_t insBuf;
+    Instruction_t *insBuf;
 } IFIS_t;
 
 typedef struct ISRDBuf {
-    Instruction_t insBuf;
+    Instruction_t *insBuf;
 } ISRD_t;
 
 typedef struct RDEXBuf {
-    Instruction_t insBuf;
+    Instruction_t *insBuf;
 } RDEX_t;
 
 typedef struct EXWBBuf {
-    Instruction_t insBuf;
+    Instruction_t *insBuf;
 } EXWB_t;
 
 std::string trim_left(const std::string& str);
 std::string trim_right(const std::string& str);
 std::string trim(const std::string& str);
+
+template<typename T>
+void print(T t, int width) {
+    std::cout << std::left << std::setw(width) << std::setfill(' ') << t;
+}
 
 #endif
