@@ -3,16 +3,15 @@
 #include <cstdio>       //printf
 
 Pipeline::Pipeline() {
-    std::string inst = "inst.txt";
-    readInstructions(inst);
     pc = 0;
     cycles = 0;
-    running = true;
+    running = false;
     rgx = std::regex("\\s*([a-zA-Z]+\\.?[a-zA-Z]?)\\s+([a-zA-Z][0-9]|[a-zA-Z]+),?\\s*(-?[a-zA-Z0-9\\(\\)]*),?\\s*([a-zA-Z]*[0-9]*)?");
 }
 
 Pipeline::Pipeline(std::string inst, std::string data, std::string config, std::string out) {
-    readInstructions(inst);
+    mem = new Memory(inst, data);
+    branches = mem.getBranches();
     pc = 0;
     cycles = 0;
     running = true;
@@ -29,42 +28,6 @@ Pipeline::Pipeline(std::string inst, std::string data, std::string config, std::
 
 Pipeline::~Pipeline() {
     // output.close();
-}
-
-void Pipeline::readInstructions(std::string file) {
-    std::ifstream in(file);
-    if(!in) {
-        perror("Unable to open instruction file");
-        std::exit(EXIT_FAILURE);
-    }
-
-    std::string line;
-    std::string::size_type n;
-    int count = 0;
-    while(std::getline(in, line)) {
-        instructions.push_back(line);
-        if((n=line.find(":")) != std::string::npos) {
-            std::string br = line.substr(0, n);
-            branches[br] = count;
-        }
-        count++;
-    }
-    if(in.bad()) {
-        perror("Error reading instruction file line");
-        std::exit(EXIT_FAILURE);
-    }
-    in.close();
-
-    //Testing
-    std::cout << "Program:\n";
-    for(int i = 0; i < (int)instructions.size(); i++) {
-        std::cout << instructions[i] << "\n";
-    }
-    std::cout << "\nBranches:\n";
-    for(const auto &pair : branches) {
-        std::cout << pair.first << ": " << pair.second << "\n";
-    }
-    std::cout << "\n";
 }
 
 void Pipeline::run() {
@@ -113,8 +76,8 @@ void Pipeline::run() {
 void Pipeline::Fetch() {
     //If there's not an instruction sitting here already
     if(ifStage == NULL) {
-        if(pc < (int)instructions.size()) { //make sure we don't read past the end
-            std::string line = instructions[pc];
+        if(mem.availInstruction(pc)) { //make sure we don't read past the end
+            std::string line = mem.getInstruction(pc);
             //strip branch label if exists
             std::string::size_type n;
             if((n=line.find(":")) != std::string::npos) {
@@ -358,6 +321,8 @@ void Pipeline::Write() {
     //Loop Through each functional unit and perform the operation if available
     if(wbStage != NULL) {
         if(sb.canWrite(wbStage)) {
+            //Write results to register
+
             if(wbStage->in == HLT) {
                 running = false;
             }

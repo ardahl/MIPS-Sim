@@ -10,9 +10,13 @@
 #include <algorithm>
 
 #define DATA_BEGIN 0x100
-#define WORD_SIZE 32
+#define WORD_SIZE 4 //4 bytes
+#define DOUBLE_WORD_SIZE 8
 #define INT_REG 32
 #define FLOAT_REG 32
+#define MEM_SIZE 128 //32 4-byte words
+
+#define unsigned char byte_t
 
 enum Ins {
     LI,

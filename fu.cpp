@@ -9,6 +9,7 @@ void DataUnit::execute(Instruction_t* instruction) {
         count = cycles;
         //Calculate offset for memory
         instruction->memLoc = instruction->R2 + instruction->memLoc;
+        //Read value from memory
     }
 }
 

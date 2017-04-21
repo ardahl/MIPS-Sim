@@ -2,7 +2,7 @@
 #define PIPELINE_HPP_
 
 #include "scoreboard.hpp"
-#include <unordered_map>
+#include "memory.hpp"
 #include <regex>
 
 class Pipeline {
@@ -13,7 +13,6 @@ public:
     void run();
 
 private:
-    void readInstructions(std::string inst);
     void Fetch();  //Instruction Fetch stage
     void Issue();  //Indtruction Decode stage
     void Read();  //Execution stage
@@ -26,15 +25,15 @@ private:
     bool running;
     int pc;     //Program counter
     int cycles; //Current number of cycles
-    std::vector<std::string> instructions;
+    Memory* mem;
+    Scoreboard sb;
     std::unordered_map<std::string, int> branches; //Map of branch label to program counter number
     int intRegisters[INT_REG];      //Array of 32 bit Integer registers
     double fpRegisters[FLOAT_REG];  //Array of 64 bit floating point registers
-    std::vector<Instruction_t*> fetched; //List of all fetched instructions for printing purposes
-    Scoreboard sb;
 
     std::regex rgx;
     std::ofstream log;
+    std::vector<Instruction_t*> fetched; //List of all fetched instructions for printing purposes
 
     //Buffers between each stage
     //There's 2 buffers for each to simulate concurrency
