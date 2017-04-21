@@ -6,7 +6,7 @@
 class Scoreboard {
 public:
     Scoreboard();
-    Scoreboard(std::string configUnits);
+    Scoreboard(std::string configUnits, Memory *m);
     //For the Scoreboard
     issue_t attemptIssue(Instruction_t *instruct);
     bool canRead(Instruction_t *instruct);
@@ -15,7 +15,7 @@ public:
     //For the functional units
     int execute(Instruction_t* inst);
     bool running(int index);
-    
+
 private:
     int numData, numInt, numAdd, numMult, numDiv;       //number of integer units is always 1
     int usedData, usedInt, usedAdd, usedMult, usedDiv;
@@ -44,7 +44,7 @@ private:
     std::string regFloat[FLOAT_REG];
 
     std::string instructionFU(Ins i);
-    bool WAR(std::string type, int dest);
+    bool WAW(std::string type, int dest);
     int getIndex(std::string FU, int ind);
     void getRegTypes(int index, char &d, char &s1, char &s2);
     std::string indexToUnit(int index);

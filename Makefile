@@ -2,7 +2,7 @@ CC=g++
 CFLAGS= -std=c++11 -c -Wall -g
 LDFLAGS=
 
-SOURCES=defines.cpp fu.cpp scoreboard.cpp pipeline.cpp main.cpp
+SOURCES=defines.cpp memory.cpp fu.cpp scoreboard.cpp pipeline.cpp main.cpp
 OBJECTS=$(SOURCES:.cpp=.o)
 
 .PHONY: pipeline clean

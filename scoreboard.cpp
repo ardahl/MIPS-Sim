@@ -4,7 +4,7 @@ Scoreboard::Scoreboard() {
 
 }
 
-Scoreboard::Scoreboard(std::string configUnits) {
+Scoreboard::Scoreboard(std::string configUnits, Memory *m) {
     numData = 1;
     numInt = 1;
     usedData = 0;
@@ -58,19 +58,19 @@ Scoreboard::Scoreboard(std::string configUnits) {
 
     //Init units
     FU = new FunctionalUnit*[total];
-    FU[0] = new DataUnit(1);
-    FU[1] = new IntegerUnit(1);
+    FU[0] = new DataUnit(m, 1);
+    FU[1] = new IntegerUnit(m, 1);
     for(int i = 0; i < numAdd; i++) {
         int index = i+2;
-        FU[index] = new FPAdder(addDelay);
+        FU[index] = new FPAdder(m, addDelay);
     }
     for(int i = 0; i < numMult; i++) {
         int index = i+numAdd+2;
-        FU[index] = new FPMult(multDelay);
+        FU[index] = new FPMult(m, multDelay);
     }
     for(int i = 0; i < numDiv; i++) {
         int index = i+numAdd+numMult+2;
-        FU[index] = new FPDiv(divDelay);
+        FU[index] = new FPDiv(m, divDelay);
     }
 
     //Initialize empty scoreboard
@@ -113,10 +113,11 @@ issue_t Scoreboard::attemptIssue(Instruction_t *instruct) {
         return true;
     }
     int dest = instruct->regDest;
-    if(WAR(unit, dest)) {
+    if(WAW(unit, dest)) {
         // printf("Failed: WAR %s\n", instruct->line.c_str());
         // printf("RegInt[%d]: %s\n", dest, regInt[dest].c_str());
         return ISS_FAILED;
+        instruct->waw = 'Y';
     }
 
     if(unit == "DATAI") {
@@ -250,7 +251,7 @@ issue_t Scoreboard::attemptIssue(Instruction_t *instruct) {
     return ISS_FAILED;
 }
 
-bool Scoreboard::WAR(std::string type, int dest) {
+bool Scoreboard::WAW(std::string type, int dest) {
     if(type == "INT" || type == "DATAI") {
         if(regInt[dest].empty()) {
             return false;

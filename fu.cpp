@@ -7,9 +7,36 @@ void DataUnit::execute(Instruction_t* instruction) {
     if(validOp(instruction->in)) {
         inst = instruction;
         count = cycles;
-        //Calculate offset for memory
-        instruction->memLoc = instruction->R2 + instruction->memLoc;
-        //Read value from memory
+        //Read value from memory?
+        inst->memLoc = inst->R2 + inst->memLoc;
+        if(inst->in == LW) {
+            int val = -1;
+            if(mem->read(inst->memLoc, val)) {
+                inst->R1 = val;
+            }
+            else {
+                printf("LW failed: %d\n", inst->memLoc);
+            }
+        }
+        else if(inst->in == LD) {
+            double val = -1;
+            if(mem->readDouble(inst->memLoc, val)) {
+                inst->R1 = val;
+            }
+            else {
+                printf("LD failed: %d\n", inst->memLoc);
+            }
+        }
+        else if(inst->in == SW) {
+            if(!mem->write(inst->memLoc, inst->R1)) {
+                printf("SW failed: %d\n", inst->memLoc);
+            }
+        }
+        else if(inst->in == SD) {
+            if(!mem->write(inst->memLoc, inst->F1)) {
+                printf("SD failed: %d\n", inst->memLoc);
+            }
+        }
     }
 }
 
@@ -34,34 +61,38 @@ void IntegerUnit::execute(Instruction_t* instruction) {
         count = cycles;
         //If load immediate, do nothing
         //If LUI, multiply immediate value by 2^16
-        if(instruction->in == LUI) {
-            instruction->im = instruction->im << 16;
+        if(inst->in == LI) {
+            inst->R1 = inst->im;
         }
-        else if(instruction->in != LI) {//Else, perform selected operation
+        else if(inst->in == LUI) {
+            inst->im = inst->im << 16;
+            inst->R1 = inst->im;
+        }
+        else {//Else, perform selected operation
             switch(instruction->in) {
                 case DADD:
-                    instruction->R1 = instruction->R2 + instruction->R3;
+                    inst->R1 = inst->R2 + inst->R3;
                     break;
                 case DADDI:
-                    instruction->R1 = instruction->R2 + instruction->im;
+                    inst->R1 = inst->R2 + inst->im;
                     break;
                 case DSUB:
-                    instruction->R1 = instruction->R2 - instruction->im;
+                    inst->R1 = inst->R2 - inst->R3;
                     break;
                 case DSUBI:
-                    instruction->R1 = instruction->R2 - instruction->im;
+                    inst->R1 = inst->R2 - inst->im;
                     break;
                 case AND:
-                    instruction->R1 = instruction->R2 & instruction->im;
+                    inst->R1 = inst->R2 & inst->R3;
                     break;
                 case ANDI:
-                    instruction->R1 = instruction->R2 & instruction->im;
+                    inst->R1 = inst->R2 & inst->im;
                     break;
                 case OR:
-                    instruction->R1 = instruction->R2 | instruction->im;
+                    inst->R1 = inst->R2 | inst->R3;
                     break;
                 case ORI:
-                    instruction->R1 = instruction->R2 | instruction->im;
+                    inst->R1 = inst->R2 | inst->im;
                     break;
                 default:
                     break;
@@ -96,11 +127,11 @@ void FPAdder::execute(Instruction_t* instruction) {
         inst = instruction;
         count = cycles;
         //Perform add/sub
-        if(instruction->in == ADDD) {
-            instruction->F1 = instruction->F2 + instruction->F3;
+        if(inst->in == ADDD) {
+            inst->F1 = inst->F2 + inst->F3;
         }
         else {
-            instruction->F1 = instruction->F2 - instruction->F3;
+            inst->F1 = inst->F2 - inst->F3;
         }
     }
 }
@@ -123,7 +154,7 @@ void FPMult::execute(Instruction_t* instruction) {
         inst = instruction;
         count = cycles;
         //Do Multiply
-        instruction->F1 = instruction->F2 * instruction->F3;
+        inst->F1 = inst->F2 * inst->F3;
     }
 }
 
@@ -144,7 +175,7 @@ void FPDiv::execute(Instruction_t* instruction) {
         inst = instruction;
         count = cycles;
         //Do Division
-        instruction->F1 = instruction->F2 / instruction->F3;
+        inst->F1 = inst->F2 / inst->F3;
     }
 }
 

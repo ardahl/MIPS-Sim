@@ -1,15 +1,16 @@
 #ifndef FU_HPP_
 #define FU_HPP_
-#include "defines.hpp"
+#include "memory.hpp"
 //Functional Units
 
 class FunctionalUnit {
 protected:
     Instruction_t* inst;
+    Memory* mem;
     int cycles;
 
 public:
-    FunctionalUnit(int wait) { cycles = count = wait; }
+    FunctionalUnit(Memory *m, int wait) { mem = m; cycles = count = wait; }
     virtual bool running() { return --count; }             //Decrements counter. Returns false once counter is 0
     virtual void execute(Instruction_t* instruction)=0;     //Performs the operation
     virtual bool validOp(Ins in)=0;
@@ -18,35 +19,35 @@ public:
 
 class DataUnit: public FunctionalUnit {
 public:
-    DataUnit(int cycles): FunctionalUnit(cycles) {}
+    DataUnit(Memory *m, int cycles): FunctionalUnit(m, cycles) {}
     void execute(Instruction_t* instruction);
     bool validOp(Ins in);
 };
 
 class IntegerUnit: public FunctionalUnit {
 public:
-    IntegerUnit(int cycles): FunctionalUnit(cycles) {}
+    IntegerUnit(Memory *m, int cycles): FunctionalUnit(m, cycles) {}
     void execute(Instruction_t* instruction);
     bool validOp(Ins in);
 };
 
 class FPAdder: public FunctionalUnit {
 public:
-    FPAdder(int cycles): FunctionalUnit(cycles) {}
+    FPAdder(Memory *m, int cycles): FunctionalUnit(m, cycles) {}
     void execute(Instruction_t* instruction);
     bool validOp(Ins in);
 };
 
 class FPMult: public FunctionalUnit {
 public:
-    FPMult(int cycles): FunctionalUnit(cycles) {}
+    FPMult(Memory *m, int cycles): FunctionalUnit(m, cycles) {}
     void execute(Instruction_t* instruction);
     bool validOp(Ins in);
 };
 
 class FPDiv: public FunctionalUnit {
 public:
-    FPDiv(int cycles): FunctionalUnit(cycles) {}
+    FPDiv(Memory *m, int cycles): FunctionalUnit(m, cycles) {}
     void execute(Instruction_t* instruction);
     bool validOp(Ins in);
 };

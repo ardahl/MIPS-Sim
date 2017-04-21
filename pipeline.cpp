@@ -11,13 +11,13 @@ Pipeline::Pipeline() {
 
 Pipeline::Pipeline(std::string inst, std::string data, std::string config, std::string out) {
     mem = new Memory(inst, data);
-    branches = mem.getBranches();
+    branches = mem->getBranches();
     pc = 0;
     cycles = 0;
     running = true;
     rgx = std::regex("\\s*([a-zA-Z]+\\.?[a-zA-Z]?)\\s+([a-zA-Z][0-9]|[a-zA-Z]+),?\\s*(-?[a-zA-Z0-9\\(\\)]*),?\\s*([a-zA-Z]*[0-9]*)?");
 
-    sb = Scoreboard(config);
+    sb = Scoreboard(config, mem);
 
     log.open(out);
     if(!log) {
@@ -64,9 +64,9 @@ void Pipeline::run() {
         if(!stall) {
             pc++;
         }
-        if(cycles == 35) {
-            running = false;
-        }
+        // if(cycles == 35) {
+        //     running = false;
+        // }
     }
 }
 
@@ -76,8 +76,8 @@ void Pipeline::run() {
 void Pipeline::Fetch() {
     //If there's not an instruction sitting here already
     if(ifStage == NULL) {
-        if(mem.availInstruction(pc)) { //make sure we don't read past the end
-            std::string line = mem.getInstruction(pc);
+        if(mem->availInstruction(pc)) { //make sure we don't read past the end
+            std::string line = mem->getInstruction(pc);
             //strip branch label if exists
             std::string::size_type n;
             if((n=line.find(":")) != std::string::npos) {
@@ -130,7 +130,7 @@ void Pipeline::Fetch() {
 //   Rk[FU] ← Qk[FU] == 0;
 //   Result[dst] ← FU;
 void Pipeline::Issue() {
-    if(ifisC == 2 && isStage == NULL) {
+    if(ifisC == 2 && ifis2.insBuf != NULL && isStage == NULL) {
         isStage = ifis2.insBuf;
         isStage->ISin = cycles;
         ifis2.insBuf = NULL;
@@ -169,6 +169,21 @@ void Pipeline::Issue() {
             }
             //Parse Arguments to actual values
             parseInstruction(isStage);
+            //Unconditional Jumps
+            if(isStage->in == J && branches.count(isStage->label)) {
+                pc = branches[isStage->label]-1;    //pc is incremented after this, so decrement by 1
+                //Clear everything from this stage back
+                if(ifStage != NULL) {
+                    ifStage->IFout = cycles;
+                }
+                isStage->ISout = cycles;
+                isStage = NULL;
+                ifStage = NULL;
+                ifis1.insBuf = NULL;
+                ifis2.insBuf = NULL;
+                stall = false; //just in case
+                ifisC = 0;
+            }
             parsed = true;
         }
         //Set Scoreboard values
@@ -202,7 +217,7 @@ void Pipeline::Issue() {
 //   Rj[FU] ← No;
 //   Rk[FU] ← No;
 void Pipeline::Read() {
-    if(isrdC == 2 && rdStage == NULL) {
+    if(isrdC == 2  && isrd2.insBuf != NULL && rdStage == NULL) {
         rdStage = isrd2.insBuf;
         rdStage->RDin = cycles;
         isrd2.insBuf = NULL;
@@ -224,32 +239,75 @@ void Pipeline::Read() {
                 case BNE:
                 case BEQ:
                     rdStage->R3 = intRegisters[rdStage->regSource2];
-                case LW:
-                case SW:
-                case LD:
-                case SD:
                 case DADDI:
                 case DSUBI:
                 case ANDI:
                 case ORI:
+                case LW:
+                case LD:
+                    rdStage->R2 = intRegisters[rdStage->regSource1];
+                    break;
+                case SW:
+                    rdStage->R1 = intRegisters[rdStage->regDest];
                     rdStage->R2 = intRegisters[rdStage->regSource1];
                     break;
                 case ADDD:
                 case SUBD:
                 case MULD:
                 case DIVD:
-                    rdStage->F2 = fpRegisters[rdStage->regSource1];
                     rdStage->F3 = fpRegisters[rdStage->regSource2];
+                    rdStage->F2 = fpRegisters[rdStage->regSource1];
+                    break;
+                case SD:
+                    rdStage->F1 = fpRegisters[rdStage->regDest];
+                    rdStage->R2 = fpRegisters[rdStage->regSource1];
                     break;
                 default:
                     break;
             }
-            rdStage->RDout = cycles;
-            rdex1.insBuf = rdStage;
-            rdStage = NULL;
-            if(rdexC == 0) {
-                rdexC = 1;
+            bool take = false;
+            if(rdStage->in == BNE || rdStage->in == BEQ) {
+                if(rdStage->in == BNE) {
+                    take = rdStage->R2 != rdStage->R3;
+                    printf("%d != %d\n", rdStage->R2, rdStage->R3);
+                }
+                else {
+                    take = rdStage->R2 == rdStage->R3;
+                    printf("%d == %d\n", rdStage->R2, rdStage->R3);
+                }
+                if(take) {
+                    pc = branches[rdStage->label]-1;
+                    //clear out everything behind this
+                    rdStage->RDout = cycles;
+                    rdStage = NULL;
+                    if(isStage != NULL) {
+                        isStage->ISout = cycles;
+                    }
+                    isStage = NULL;
+                    if(ifStage != NULL) {
+                        ifStage->IFout = cycles;
+                    }
+                    ifStage = NULL;
+                    isrd1.insBuf = NULL;
+                    isrd2.insBuf = NULL;
+                    ifis1.insBuf = NULL;
+                    ifis2.insBuf = NULL;
+                    isrdC = 0;
+                    ifisC = 0;
+                    stall = false;
+                }
             }
+            if(!take) {
+                rdStage->RDout = cycles;
+                rdex1.insBuf = rdStage;
+                rdStage = NULL;
+                if(rdexC == 0) {
+                    rdexC = 1;
+                }
+            }
+        }
+        else {
+            rdStage->raw = 'Y';
         }
     }
     if(isrdC == 1 && rdStage == NULL) {
@@ -318,11 +376,33 @@ void Pipeline::Write() {
             exwbC = 1;
         }
     }
-    //Loop Through each functional unit and perform the operation if available
     if(wbStage != NULL) {
         if(sb.canWrite(wbStage)) {
             //Write results to register
-
+            switch(wbStage->in) {
+                case LI:
+                case LUI:
+                case LW:
+                case DADD:
+                case DADDI:
+                case DSUB:
+                case DSUBI:
+                case AND:
+                case ANDI:
+                case OR:
+                case ORI:
+                    intRegisters[wbStage->regDest] = wbStage->R1;
+                    break;
+                case LD:
+                case ADDD:
+                case SUBD:
+                case MULD:
+                case DIVD:
+                    fpRegisters[wbStage->regDest] = wbStage->F1;
+                    break;
+                default:
+                    break;
+            }
             if(wbStage->in == HLT) {
                 running = false;
             }

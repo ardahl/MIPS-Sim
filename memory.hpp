@@ -10,9 +10,9 @@ public:
     Memory(std::string inst, std::string data);
 
     bool write(int address, int data);
-    bool write(int address, float data);
-    bool read(int address, byte_t* buf);
-    bool readDouble(int address, byte_t* buf);
+    bool write(int address, double data);
+    bool read(int address, int &val);
+    bool readDouble(int address, double &val);
     bool availInstruction(int pc);
     std::string getInstruction(int pc);
     std::unordered_map<std::string, int> getBranches() { return branches; }

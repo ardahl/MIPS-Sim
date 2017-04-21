@@ -16,7 +16,7 @@
 #define FLOAT_REG 32
 #define MEM_SIZE 128 //32 4-byte words
 
-#define unsigned char byte_t
+typedef unsigned char byte_t;
 
 enum Ins {
     LI,

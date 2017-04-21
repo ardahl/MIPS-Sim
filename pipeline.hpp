@@ -2,7 +2,6 @@
 #define PIPELINE_HPP_
 
 #include "scoreboard.hpp"
-#include "memory.hpp"
 #include <regex>
 
 class Pipeline {
