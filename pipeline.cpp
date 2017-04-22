@@ -35,22 +35,22 @@ void Pipeline::run() {
     stall = false;
     isStage = NULL;
     parsed = false;
-    rdStage = NULL;
-    exStage = NULL;
-    exIndex = -1;
-    exCycles = false;
-    wbStage = NULL;
+    // rdStage = NULL;
+    // exStage = NULL;
+    // exIndex = -1;
+    // exCycles = false;
+    // wbStage = NULL;
     ifis1.insBuf = NULL;
     ifis2.insBuf = NULL;
     ifisC = 0;
     isrd1.insBuf = NULL;
     isrd2.insBuf = NULL;
     isrdC = 0;
-    rdex1.insBuf = NULL;
-    rdex2.insBuf = NULL;
+    // rdex1.insBuf = NULL;
+    // rdex2.insBuf = NULL;
     rdexC = 0;
-    exwb1.insBuf = NULL;
-    exwb2.insBuf = NULL;
+    // exwb1.insBuf = NULL;
+    // exwb2.insBuf = NULL;
     exwbC = 0;
     while(running) {
         cycles++;
@@ -217,9 +217,10 @@ void Pipeline::Issue() {
 //   Rj[FU] ← No;
 //   Rk[FU] ← No;
 void Pipeline::Read() {
-    if(isrdC == 2  && isrd2.insBuf != NULL && rdStage == NULL) {
-        rdStage = isrd2.insBuf;
-        rdStage->RDin = cycles;
+    if(isrdC == 2  && isrd2.insBuf != NULL) {
+        // rdStage = isrd2.insBuf;
+        isrd2.insBuf->RDin = cycles;
+        rdStage.push_back(isrd2.insBuf);
         isrd2.insBuf = NULL;
         if(isrd1.insBuf == NULL) {
             isrdC = 0;
@@ -228,89 +229,117 @@ void Pipeline::Read() {
             isrdC = 1;
         }
     }
-    if(rdStage != NULL) {
-        if(sb.canRead(rdStage)) {
-            //read in from register files
-            switch(rdStage->in) {
-                case DADD:
-                case DSUB:
-                case AND:
-                case OR:
-                case BNE:
-                case BEQ:
-                    rdStage->R3 = intRegisters[rdStage->regSource2];
-                case DADDI:
-                case DSUBI:
-                case ANDI:
-                case ORI:
-                case LW:
-                case LD:
-                    rdStage->R2 = intRegisters[rdStage->regSource1];
-                    break;
-                case SW:
-                    rdStage->R1 = intRegisters[rdStage->regDest];
-                    rdStage->R2 = intRegisters[rdStage->regSource1];
-                    break;
-                case ADDD:
-                case SUBD:
-                case MULD:
-                case DIVD:
-                    rdStage->F3 = fpRegisters[rdStage->regSource2];
-                    rdStage->F2 = fpRegisters[rdStage->regSource1];
-                    break;
-                case SD:
-                    rdStage->F1 = fpRegisters[rdStage->regDest];
-                    rdStage->R2 = fpRegisters[rdStage->regSource1];
-                    break;
-                default:
-                    break;
+    // if(rdStage != NULL) {
+    if(rdStage.size() > 0) {
+        //TODO: Buffer of instructions for read, exec, and write
+        //TODO: Maybe move switch to here, might prevent WAR hazzards with multiple instructions?
+        Instruction_t *rdIns;
+        std::vector<Instruction_t*> erase;
+        for(int i = 0; i < (int)rdStage.size(); i++) {
+            rdIns = rdStage[i];
+            if(sb.canRead(rdIns)) {
+                //read in from register files
+                switch(rdIns->in) {
+                    case DADD:
+                    case DSUB:
+                    case AND:
+                    case OR:
+                    case BNE:
+                    case BEQ:
+                        rdIns->R3 = intRegisters[rdIns->regSource2];
+                    case DADDI:
+                    case DSUBI:
+                    case ANDI:
+                    case ORI:
+                    case LW:
+                    case LD:
+                        rdIns->R2 = intRegisters[rdIns->regSource1];
+                        break;
+                    case SW:
+                        rdIns->R1 = intRegisters[rdIns->regDest];
+                        rdIns->R2 = intRegisters[rdIns->regSource1];
+                        break;
+                    case ADDD:
+                    case SUBD:
+                    case MULD:
+                    case DIVD:
+                        rdIns->F3 = fpRegisters[rdIns->regSource2];
+                        rdIns->F2 = fpRegisters[rdIns->regSource1];
+                        break;
+                    case SD:
+                        rdIns->F1 = fpRegisters[rdIns->regDest];
+                        rdIns->R2 = fpRegisters[rdIns->regSource1];
+                        break;
+                    default:
+                        break;
+                }
+                bool take = false;
+                if(rdIns->in == BNE || rdIns->in == BEQ) {
+                    if(rdIns->in == BNE) {
+                        take = rdIns->R2 != rdIns->R3;
+                        printf("%d != %d\n", rdIns->R2, rdIns->R3);
+                    }
+                    else {
+                        take = rdIns->R2 == rdIns->R3;
+                        printf("%d == %d\n", rdIns->R2, rdIns->R3);
+                    }
+                    if(take) {
+                        pc = branches[rdIns->label]-1;
+                        //clear out everything behind this
+                        rdIns->RDout = cycles;
+                        erase.push_back(rdIns);
+                        // rdIns = NULL;
+                        if(isStage != NULL) {
+                            isStage->ISout = cycles;
+                        }
+                        isStage = NULL;
+                        if(ifStage != NULL) {
+                            ifStage->IFout = cycles;
+                        }
+                        ifStage = NULL;
+                        isrd1.insBuf = NULL;
+                        isrd2.insBuf = NULL;
+                        ifis1.insBuf = NULL;
+                        ifis2.insBuf = NULL;
+                        isrdC = 0;
+                        ifisC = 0;
+                        stall = false;
+                    }
+                }
+                if(!take) {
+                    rdIns->RDout = cycles;
+                    // rdex1.insBuf = rdStage;
+                    RDEX_t re;
+                    re.insBuf = rdIns;
+                    rdex1.push_back(re);
+                    // rdStage = NULL;
+                    erase.push_back(rdIns);
+                    if(rdexC == 0) {
+                        rdexC = 1;
+                    }
+                }
             }
-            bool take = false;
-            if(rdStage->in == BNE || rdStage->in == BEQ) {
-                if(rdStage->in == BNE) {
-                    take = rdStage->R2 != rdStage->R3;
-                    printf("%d != %d\n", rdStage->R2, rdStage->R3);
+            else {
+                rdIns->raw = 'Y';
+            }
+        }
+        //remove instructions now in rdex buffer
+        if(erase.size() > 0) {
+            int ecount = 0;
+            for(std::vector<Instruction_t*>::iterator it = rdStage.begin(); it != rdStage.end();) {
+                if(*it == erase[ecount]) {
+                    it = rdStage.erase(it);
+                    ecount++;
                 }
                 else {
-                    take = rdStage->R2 == rdStage->R3;
-                    printf("%d == %d\n", rdStage->R2, rdStage->R3);
-                }
-                if(take) {
-                    pc = branches[rdStage->label]-1;
-                    //clear out everything behind this
-                    rdStage->RDout = cycles;
-                    rdStage = NULL;
-                    if(isStage != NULL) {
-                        isStage->ISout = cycles;
-                    }
-                    isStage = NULL;
-                    if(ifStage != NULL) {
-                        ifStage->IFout = cycles;
-                    }
-                    ifStage = NULL;
-                    isrd1.insBuf = NULL;
-                    isrd2.insBuf = NULL;
-                    ifis1.insBuf = NULL;
-                    ifis2.insBuf = NULL;
-                    isrdC = 0;
-                    ifisC = 0;
-                    stall = false;
+                    it++;
                 }
             }
-            if(!take) {
-                rdStage->RDout = cycles;
-                rdex1.insBuf = rdStage;
-                rdStage = NULL;
-                if(rdexC == 0) {
-                    rdexC = 1;
-                }
-            }
-        }
-        else {
-            rdStage->raw = 'Y';
+            erase.clear();
         }
     }
-    if(isrdC == 1 && rdStage == NULL) {
+    // if(isrdC == 1 && rdStage == NULL) {
+    if(isrdC == 1) {
         isrdC = 2;
         isrd2 = isrd1;
         isrd1.insBuf = NULL;
@@ -321,37 +350,79 @@ void Pipeline::Read() {
 //function execute(FU)
    // Execute whatever FU must do
 void Pipeline::Exec() {
-    if(rdexC == 2 && exStage == NULL) {
-        exStage = rdex2.insBuf;
-        exStage->EXin = cycles;
-        rdex2.insBuf = NULL;
-        if(rdex1.insBuf == NULL) {
+    // if(rdexC == 2 && exStage == NULL) {
+    if(rdexC == 2) {
+        // exStage = rdex2.insBuf;
+        for(int i = 0; i < (int)rdex2.size(); i++) {
+            exStage.push_back(rdex2[i].insBuf);
+            exStage[exStage.size()-1]->EXin = cycles;
+            exCycles.push_back(false);
+            exIndex.push_back(-1);
+        }
+        // exStage->EXin = cycles;
+        // rdex2.insBuf = NULL;
+        rdex2.clear();
+        // if(rdex1.insBuf == NULL) {
+        if(rdex1.size() == 0) {
             rdexC = 0;
         }
         else {
             rdexC = 1;
         }
-        exCycles = false;
+        // exCycles = false;
     }
     //Loop Through each functional unit and perform the operation if available
-    if(exStage != NULL) {
-        if(!exCycles) {
-            exIndex = sb.execute(exStage);
-            exCycles = true;
-        }
-        if(!sb.running(exIndex)) {
-            exStage->EXout = cycles;
-            exwb1.insBuf = exStage;
-            exStage = NULL;
-            if(exwbC == 0) {
-                exwbC = 1;
+    // if(exStage != NULL) {
+    if(exStage.size() > 0) {
+        Instruction_t *exIn;
+        std::vector<Instruction_t*> erase;
+        for(int i = 0; i < (int)exStage.size(); i++) {
+            exIn = exStage[i];
+            if(!exCycles[i]) {
+                exIndex[i] = sb.execute(exIn);
+                exCycles[i] = true;
+            }
+            if(!sb.running(exIndex[i])) {
+                exIn->EXout = cycles;
+                EXWB_t ew;
+                ew.insBuf = exIn;
+                exwb1.push_back(ew);
+                // exwb1.insBuf = exStage;
+                // exStage = NULL;
+                erase.push_back(exIn);
+                if(exwbC == 0) {
+                    exwbC = 1;
+                }
             }
         }
+        //remove finished instructions
+        if(erase.size() > 0) {
+            int ecount = 0;
+            std::vector<Instruction_t*>::iterator it1 = exStage.begin();
+            std::vector<int>::iterator it2 = exIndex.begin();
+            std::vector<bool>::iterator it3 = exCycles.begin();
+            for(;it1 != exStage.end();) {
+                if(*it1 == erase[ecount]) {
+                    it1 = exStage.erase(it1);
+                    it2 = exIndex.erase(it2);
+                    it3 = exCycles.erase(it3);
+                    ecount++;
+                }
+                else {
+                    it1++;
+                    it2++;
+                    it3++;
+                }
+            }
+            erase.clear();
+        }
     }
-    if(rdexC == 1 && exStage == NULL) {
+    // if(rdexC == 1 && exStage == NULL) {
+    if(rdexC == 1) {
         rdexC = 2;
         rdex2 = rdex1;
-        rdex1.insBuf = NULL;
+        // rdex1.insBuf = NULL;
+        rdex1.clear();
     }
 }
 
@@ -365,55 +436,85 @@ void Pipeline::Exec() {
 //   Busy[FU] ← No;
 void Pipeline::Write() {
     //Write result to register or memory
-    if(exwbC == 2 && wbStage == NULL) {
-        wbStage = exwb2.insBuf;
-        wbStage->WBin = cycles;
-        exwb2.insBuf = NULL;
-        if(exwb1.insBuf == NULL) {
+    // if(exwbC == 2 && wbStage == NULL) {
+    if(exwbC == 2) {
+        // wbStage = exwb2.insBuf;
+        // wbStage->WBin = cycles;
+        for(int i = 0; i < (int)exwb2.size(); i++) {
+            wbStage.push_back(exwb2[i].insBuf);
+            wbStage[wbStage.size()-1]->WBin = cycles;
+        }
+        // exwb2.insBuf = NULL;
+        exwb2.clear();
+        // if(exwb1.insBuf == NULL) {
+        if(exwb1.size() == 0) {
             exwbC = 0;
         }
         else {
             exwbC = 1;
         }
     }
-    if(wbStage != NULL) {
-        if(sb.canWrite(wbStage)) {
-            //Write results to register
-            switch(wbStage->in) {
-                case LI:
-                case LUI:
-                case LW:
-                case DADD:
-                case DADDI:
-                case DSUB:
-                case DSUBI:
-                case AND:
-                case ANDI:
-                case OR:
-                case ORI:
-                    intRegisters[wbStage->regDest] = wbStage->R1;
-                    break;
-                case LD:
-                case ADDD:
-                case SUBD:
-                case MULD:
-                case DIVD:
-                    fpRegisters[wbStage->regDest] = wbStage->F1;
-                    break;
-                default:
-                    break;
+    // if(wbStage != NULL) {
+    if(wbStage.size() > 0) {
+        Instruction_t *wbIn;
+        std::vector<Instruction_t*> erase;
+        for(int i = 0; i < (int)wbStage.size(); i++) {
+            wbIn = wbStage[i];
+            if(sb.canWrite(wbIn)) {
+                //Write results to register
+                switch(wbIn->in) {
+                    case LI:
+                    case LUI:
+                    case LW:
+                    case DADD:
+                    case DADDI:
+                    case DSUB:
+                    case DSUBI:
+                    case AND:
+                    case ANDI:
+                    case OR:
+                    case ORI:
+                        intRegisters[wbIn->regDest] = wbIn->R1;
+                        break;
+                    case LD:
+                    case ADDD:
+                    case SUBD:
+                    case MULD:
+                    case DIVD:
+                        fpRegisters[wbIn->regDest] = wbIn->F1;
+                        break;
+                    default:
+                        break;
+                }
+                if(wbIn->in == HLT) {
+                    running = false;
+                }
+                wbIn->WBout = cycles;
+                erase.push_back(wbIn);
+                // wbIn = NULL;
             }
-            if(wbStage->in == HLT) {
-                running = false;
+        }
+        //remove finished instructions
+        if(erase.size() > 0) {
+            int ecount = 0;
+            for(std::vector<Instruction_t*>::iterator it = wbStage.begin(); it != wbStage.end();) {
+                if(*it == erase[ecount]) {
+                    it = wbStage.erase(it);
+                    ecount++;
+                }
+                else {
+                    it++;
+                }
             }
-            wbStage->WBout = cycles;
-            wbStage = NULL;
+            erase.clear();
         }
     }
-    if(exwbC == 1 && wbStage == NULL) {
+    // if(exwbC == 1 && wbStage == NULL) {
+    if(exwbC == 1) {
         exwbC = 2;
         exwb2 = exwb1;
-        exwb1.insBuf = NULL;
+        // exwb1.insBuf = NULL;
+        exwb1.clear();
     }
 }
 
@@ -563,21 +664,21 @@ void Pipeline::printCycle(std::ofstream &f) {
     }
     print(f, isrd, 8);
     f << std::endl << "RDEX: ";
-    if(rdex1.insBuf != NULL) {
-        rdex += enumToInst(rdex1.insBuf->in);
+    for(int i = 0; i < (int)rdex1.size(); i++) {
+        rdex += "[" + enumToInst(rdex1[i].insBuf->in) + "]";
     }
     rdex += ",";
-    if(rdex2.insBuf != NULL) {
-        rdex += enumToInst(rdex2.insBuf->in);
+    for(int i = 0; i < (int)rdex2.size(); i++) {
+        rdex += "[" + enumToInst(rdex2[i].insBuf->in) + "]";
     }
     print(f, rdex, 8);
     f << std::endl << "EXWB: ";
-    if(exwb1.insBuf != NULL) {
-        exwb += enumToInst(exwb1.insBuf->in);
+    for(int i = 0; i < (int)exwb1.size(); i++) {
+        exwb += "[" + enumToInst(exwb1[i].insBuf->in) + "]";
     }
     exwb += ",";
-    if(exwb2.insBuf != NULL) {
-        exwb += enumToInst(exwb2.insBuf->in);
+    for(int i = 0; i < (int)exwb2.size(); i++) {
+        exwb += "[" + enumToInst(exwb2[i].insBuf->in) + "]";
     }
     print(f, exwb, 8);
     f << std::endl << std::endl;

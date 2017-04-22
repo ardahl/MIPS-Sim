@@ -116,8 +116,8 @@ issue_t Scoreboard::attemptIssue(Instruction_t *instruct) {
     if(WAW(unit, dest)) {
         // printf("Failed: WAR %s\n", instruct->line.c_str());
         // printf("RegInt[%d]: %s\n", dest, regInt[dest].c_str());
-        return ISS_FAILED;
         instruct->waw = 'Y';
+        return ISS_FAILED;
     }
 
     if(unit == "DATAI") {
@@ -192,7 +192,14 @@ issue_t Scoreboard::attemptIssue(Instruction_t *instruct) {
             return ISS_FAILED;
         }
         else {
-            int index = getIndex(unit, usedAdd);
+            int index = getIndex(unit, 0);
+            int i = 0;
+            for(; i < numAdd; i++) {
+                if(!busy[index+i]) {
+                    index = index+i;
+                    break;
+                }
+            }
             busy[index] = true;
             op[index] = instruct;
             Fi[index] = dest;
@@ -202,7 +209,7 @@ issue_t Scoreboard::attemptIssue(Instruction_t *instruct) {
             Qk[index] = regInt[instruct->regSource2];
             Rj[index] = Qj[index].empty();
             Rk[index] = Qk[index].empty();
-            regFloat[dest] = unit+std::to_string(usedAdd);
+            regFloat[dest] = unit+std::to_string(i);
             usedAdd++;
             return index;
         }
@@ -212,7 +219,14 @@ issue_t Scoreboard::attemptIssue(Instruction_t *instruct) {
             return ISS_FAILED;
         }
         else {
-            int index = getIndex(unit, usedMult);
+            int index = getIndex(unit, 0);
+            int i = 0;
+            for(; i < numMult; i++) {
+                if(!busy[index+i]) {
+                    index = index+i;
+                    break;
+                }
+            }
             busy[index] = true;
             op[index] = instruct;
             Fi[index] = dest;
@@ -222,7 +236,7 @@ issue_t Scoreboard::attemptIssue(Instruction_t *instruct) {
             Qk[index] = regFloat[instruct->regSource2];
             Rj[index] = Qj[index].empty();
             Rk[index] = Qk[index].empty();
-            regFloat[dest] = unit+std::to_string(usedMult);
+            regFloat[dest] = unit+std::to_string(i);
             usedMult++;
             return index;
         }
@@ -232,7 +246,14 @@ issue_t Scoreboard::attemptIssue(Instruction_t *instruct) {
             return ISS_FAILED;
         }
         else {
-            int index = getIndex(unit, usedDiv);
+            int index = getIndex(unit, 0);
+            int i = 0;
+            for(; i < numDiv; i++) {
+                if(!busy[index+i]) {
+                    index = index+i;
+                    break;
+                }
+            }
             busy[index] = true;
             op[index] = instruct;
             Fi[index] = dest;
@@ -242,7 +263,7 @@ issue_t Scoreboard::attemptIssue(Instruction_t *instruct) {
             Qk[index] = regFloat[instruct->regSource2];
             Rj[index] = Qj[index].empty();
             Rk[index] = Qk[index].empty();
-            regFloat[dest] = unit+std::to_string(usedDiv);
+            regFloat[dest] = unit+std::to_string(i);
             usedDiv++;
             return index;
         }
@@ -393,24 +414,24 @@ void Scoreboard::printSB(std::ofstream &f) {
         //Name
         std::string name, fi, fj, fk, oper, qj, qk, rj, rk, timer;
         char d, s1, s2;
+        if(i == 0) {
+            name = "DATA";
+        }
+        else if(i == 1) {
+            name = "INT";
+        }
+        else if(i > 1 && i < 2+numAdd) {
+            name = "ADD" + std::to_string(i-2);
+        }
+        else if(i >= 2+numAdd && i < 2+numAdd+numMult) {
+            name = "MULT" + std::to_string(i-2-numAdd);
+        }
+        else {
+            name = "DIV" + std::to_string(i-2-numAdd-numMult);
+        }
         if(busy[i]) {
             getRegTypes(i, d, s1, s2);
 
-            if(i == 0) {
-                name = "DATA";
-            }
-            else if(i == 1) {
-                name = "INT";
-            }
-            else if(i > 1 && i < 2+numAdd) {
-                name = "ADD" + std::to_string(i-2);
-            }
-            else if(i >= 2+numAdd && i < 2+numAdd+numMult) {
-                name = "MULT" + std::to_string(i-2-numAdd);
-            }
-            else {
-                name = "DIV" + std::to_string(i-2-numAdd-numMult);
-            }
             oper = enumToInst(op[i]->in);
             if(Fi[i] != -1) {
                 if(d == 'i') {

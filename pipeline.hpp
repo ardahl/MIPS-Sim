@@ -44,11 +44,11 @@ private:
     ISRD_t isrd1;
     ISRD_t isrd2;
     int isrdC;
-    RDEX_t rdex1;
-    RDEX_t rdex2;
+    std::vector<RDEX_t> rdex1;
+    std::vector<RDEX_t> rdex2;
     int rdexC;
-    EXWB_t exwb1;
-    EXWB_t exwb2;
+    std::vector<EXWB_t> exwb1;
+    std::vector<EXWB_t> exwb2;
     int exwbC;
     //Because of stalling we need to keep buffers of each stage so we don't
     //loose the values for the next cycle
@@ -59,13 +59,13 @@ private:
     Instruction_t *isStage;
     bool parsed;
     //Read
-    Instruction_t *rdStage;
+    std::vector<Instruction_t*> rdStage;
     //Execute
-    Instruction_t *exStage;
-    bool exCycles;
-    int exIndex;
+    std::vector<Instruction_t*> exStage;
+    std::vector<bool> exCycles;
+    std::vector<int> exIndex;
     //WB
-    Instruction_t *wbStage;
+    std::vector<Instruction_t*> wbStage;
 
     // std::ofstream output;
 };
