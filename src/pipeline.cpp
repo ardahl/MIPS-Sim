@@ -27,7 +27,8 @@ Pipeline::Pipeline(std::string inst, std::string data, std::string config, std::
 }
 
 Pipeline::~Pipeline() {
-    // output.close();
+    log.close();
+    //Should probably clean up pointers (through fetched)
 }
 
 void Pipeline::run() {
@@ -35,22 +36,13 @@ void Pipeline::run() {
     stall = false;
     isStage = NULL;
     parsed = false;
-    // rdStage = NULL;
-    // exStage = NULL;
-    // exIndex = -1;
-    // exCycles = false;
-    // wbStage = NULL;
     ifis1.insBuf = NULL;
     ifis2.insBuf = NULL;
     ifisC = 0;
     isrd1.insBuf = NULL;
     isrd2.insBuf = NULL;
     isrdC = 0;
-    // rdex1.insBuf = NULL;
-    // rdex2.insBuf = NULL;
     rdexC = 0;
-    // exwb1.insBuf = NULL;
-    // exwb2.insBuf = NULL;
     exwbC = 0;
     while(running) {
         cycles++;
@@ -64,9 +56,6 @@ void Pipeline::run() {
         if(!stall) {
             pc++;
         }
-        // if(cycles == 35) {
-        //     running = false;
-        // }
     }
 }
 
@@ -75,7 +64,7 @@ void Pipeline::run() {
 //    If not empty, instruction in ID stage,
 void Pipeline::Fetch() {
     //If there's not an instruction sitting here already
-    if(ifStage == NULL) {
+    if(ifStage == NULL && ifis1.insBuf == NULL) {
         if(mem->availInstruction(pc)) { //make sure we don't read past the end
             std::string line = mem->getInstruction(pc);
             //strip branch label if exists

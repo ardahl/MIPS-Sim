@@ -6,7 +6,12 @@ Data
 void DataUnit::execute(Instruction_t* instruction) {
     if(validOp(instruction->in)) {
         inst = instruction;
-        count = cycles;
+        if(inst->in == LD || inst->in == SD) {
+            count = fpcycles;
+        }
+        else {
+            count = cycles;
+        }
         //Read value from memory?
         inst->memLoc = inst->R2 + inst->memLoc;
         if(inst->in == LW) {

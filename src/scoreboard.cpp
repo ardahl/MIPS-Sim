@@ -58,7 +58,7 @@ Scoreboard::Scoreboard(std::string configUnits, Memory *m) {
 
     //Init units
     FU = new FunctionalUnit*[total];
-    FU[0] = new DataUnit(m, 1);
+    FU[0] = new DataUnit(m, 1, 2);
     FU[1] = new IntegerUnit(m, 1);
     for(int i = 0; i < numAdd; i++) {
         int index = i+2;

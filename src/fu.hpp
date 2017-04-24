@@ -18,8 +18,10 @@ public:
 };
 
 class DataUnit: public FunctionalUnit {
+private:
+    int fpcycles;
 public:
-    DataUnit(Memory *m, int cycles): FunctionalUnit(m, cycles) {}
+    DataUnit(Memory *m, int cyclesInt, int cyclesFP): FunctionalUnit(m, cyclesInt), fpcycles(cyclesFP) {}
     void execute(Instruction_t* instruction);
     bool validOp(Ins in);
 };
