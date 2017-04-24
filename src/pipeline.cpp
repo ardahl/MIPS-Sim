@@ -88,12 +88,17 @@ void Pipeline::Fetch() {
     }
     else {  //If we're waiting with an instruction, mark it as a structural hazard
         stall = true;
-        ifStage->struc = 'Y';
+        // if(ifStage != NULL) {
+        //     ifStage->struc = 'Y';
+        // }
+        // else {
+        //     ifis1.insBuf->struc = 'Y';
+        // }
     }
 
     //Move to the buffer.
     if(ifis1.insBuf == NULL && ifStage != NULL) {
-        ifStage->IFout = cycles;
+        // ifStage->IFout = cycles;
         ifis1.insBuf = ifStage;
         ifStage = NULL;
         if(ifisC == 0) {
@@ -121,6 +126,7 @@ void Pipeline::Fetch() {
 void Pipeline::Issue() {
     if(ifisC == 2 && ifis2.insBuf != NULL && isStage == NULL) {
         isStage = ifis2.insBuf;
+        isStage->IFout = cycles-1;
         isStage->ISin = cycles;
         ifis2.insBuf = NULL;
         if(ifis1.insBuf == NULL) {
@@ -180,7 +186,7 @@ void Pipeline::Issue() {
         isStage->index = t;
         if(t != ISS_FAILED) {
             if(isrd1.insBuf == NULL) {
-                isStage->ISout = cycles;
+                // isStage->ISout = cycles;
                 isrd1.insBuf = isStage;
                 isStage = NULL;
                 parsed = false;
@@ -189,9 +195,9 @@ void Pipeline::Issue() {
                 }
             }
         }
-        else {
-            isStage->struc = 'Y';
-        }
+        // else {
+        //     isStage->struc = 'Y';
+        // }
     }
     if(ifisC == 1 && isStage == NULL) {
         ifisC = 2;
@@ -208,6 +214,7 @@ void Pipeline::Issue() {
 void Pipeline::Read() {
     if(isrdC == 2  && isrd2.insBuf != NULL) {
         // rdStage = isrd2.insBuf;
+        isrd2.insBuf->ISout = cycles-1;
         isrd2.insBuf->RDin = cycles;
         rdStage.push_back(isrd2.insBuf);
         isrd2.insBuf = NULL;

@@ -109,11 +109,12 @@ Scoreboard::Scoreboard(std::string configUnits, Memory *m) {
 issue_t Scoreboard::attemptIssue(Instruction_t *instruct) {
     Ins ins = instruct->in;
     std::string unit = instructionFU(ins);
-    if(ins == HLT || ins == J || ins == BNE || ins == BEQ) {
+    // if(ins == HLT || ins == J || ins == BNE || ins == BEQ) {
+    if(ins == HLT || ins == J) {
         return true;
     }
     int dest = instruct->regDest;
-    if(WAW(unit, dest)) {
+    if((ins != BNE && ins != BEQ) && WAW(unit, dest)) {
         // printf("Failed: WAR %s\n", instruct->line.c_str());
         // printf("RegInt[%d]: %s\n", dest, regInt[dest].c_str());
         instruct->waw = 'Y';
@@ -122,6 +123,7 @@ issue_t Scoreboard::attemptIssue(Instruction_t *instruct) {
 
     if(unit == "DATAI") {
         if(busy[0]) {
+            instruct->struc = 'Y';
             return ISS_FAILED;
         }
         else {
@@ -140,6 +142,7 @@ issue_t Scoreboard::attemptIssue(Instruction_t *instruct) {
     }
     if(unit == "DATAF") {
         if(busy[0]) {
+            instruct->struc = 'Y';
             return ISS_FAILED;
         }
         else {
@@ -158,13 +161,19 @@ issue_t Scoreboard::attemptIssue(Instruction_t *instruct) {
     }
     else if(unit == "INT") {
         if(busy[1]) {
+            instruct->struc = 'Y';
             return ISS_FAILED;
         }
         else {
             //Issue
             busy[1] = true;
             op[1] = instruct;
-            Fi[1] = dest;
+            if(ins != BNE && ins != BEQ) {
+                Fi[1] = dest;
+            }
+            else {
+                Fi[1] = -1;
+            }
             if(ins == LI || ins == LUI) {
                 Fj[1] = -1;
                 Qj[1] = "";
@@ -183,12 +192,15 @@ issue_t Scoreboard::attemptIssue(Instruction_t *instruct) {
             }
             Rj[1] = Qj[1].empty();
             Rk[1] = Qk[1].empty();
-            regInt[dest] = unit+std::to_string(0);
+            if(ins != BNE && ins != BEQ) {
+                regInt[dest] = unit+std::to_string(0);
+            }
             return 1;
         }
     }
     else if(unit == "ADD") {
         if(usedAdd == numAdd) {
+            instruct->struc = 'Y';
             return ISS_FAILED;
         }
         else {
@@ -205,8 +217,8 @@ issue_t Scoreboard::attemptIssue(Instruction_t *instruct) {
             Fi[index] = dest;
             Fj[index] = instruct->regSource1;
             Fk[index] = instruct->regSource2;
-            Qj[index] = regInt[instruct->regSource1];
-            Qk[index] = regInt[instruct->regSource2];
+            Qj[index] = regFloat[instruct->regSource1];
+            Qk[index] = regFloat[instruct->regSource2];
             Rj[index] = Qj[index].empty();
             Rk[index] = Qk[index].empty();
             regFloat[dest] = unit+std::to_string(i);
@@ -216,6 +228,7 @@ issue_t Scoreboard::attemptIssue(Instruction_t *instruct) {
     }
     else if(unit == "MUL") {
         if(usedMult == numMult) {
+            instruct->struc = 'Y';
             return ISS_FAILED;
         }
         else {
@@ -243,6 +256,7 @@ issue_t Scoreboard::attemptIssue(Instruction_t *instruct) {
     }
     else if(unit == "DIV") {
         if(usedDiv == numDiv) {
+            instruct->struc = 'Y';
             return ISS_FAILED;
         }
         else {
@@ -289,12 +303,17 @@ bool Scoreboard::WAW(std::string type, int dest) {
 //Read Functions
 bool Scoreboard::canRead(Instruction_t *instruct) {
     issue_t index = instruct->index;
-    if(instruct->in == BNE || instruct->in == BEQ || instruct->in == J || instruct->in == HLT) {
+    // if(instruct->in == BNE || instruct->in == BEQ || instruct->in == J || instruct->in == HLT) {
+    if(instruct->in == J || instruct->in == HLT) {
         return true;
     }
     if(Rj[index] && Rk[index]) {
         Rj[index] = false;
         Rk[index] = false;
+        //The pipeline will now resolve the branch, so we can remove the scoreboard entry
+        if(instruct->in == BNE || instruct->in == BEQ) {
+            busy[1] = false;
+        }
         return true;
     }
     return false;
@@ -507,12 +526,15 @@ void Scoreboard::getRegTypes(int index, char &d, char &s1, char &s2) {
         case DSUBI:
         case ANDI:
         case ORI:
-        case BNE:
-        case BEQ:
-        case HLT:
             d = 'i';
             s1 = 'i';
             s2 = 'n';
+            break;
+        case BNE:
+        case BEQ:
+            d = 'n';
+            s1 = 'i';
+            s2 = 'i';
             break;
         case LD:
         case SD:
@@ -543,6 +565,7 @@ void Scoreboard::getRegTypes(int index, char &d, char &s1, char &s2) {
             s2 = 'f';
             break;
         case J:
+        case HLT:
         default:
             d = 'n';
             s1 = 'n';
