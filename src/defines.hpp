@@ -79,6 +79,7 @@ typedef struct InsType {
     char raw;
     char waw;
     char struc;
+    char iCacheHit;
 } Instruction_t;
 
 typedef struct IFISBuf {

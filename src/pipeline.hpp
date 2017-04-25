@@ -55,6 +55,7 @@ private:
     //IF
     Instruction_t *ifStage;
     bool stall;
+    bool cmiss;
     //Issue
     Instruction_t *isStage;
     bool parsed;

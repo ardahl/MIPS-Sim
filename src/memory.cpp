@@ -8,13 +8,44 @@ Memory::Memory() {
 
 }
 
-Memory::Memory(std::string inst, std::string data) {
+Memory::Memory(std::string inst, std::string data, std::string config) {
     readInstructions(inst);
     readData(data);
+    readCache(config);
+    memDelay = -1;
+    //I-Cache
+    iValid = new bool[iBlockNum];
+    iTag = new int[iBlockNum];
+    for(int i = 0; i < iBlockNum; i++) {
+        iValid[i] = false;
+    }
 }
 
+//Keep internal counter for caching
 bool Memory::availInstruction(int pc) {
-    return pc < (int)instructions.size();
+    if(memDelay == -1) {   //New instruction to check for cache
+        int btag = pc / iBlockSize;
+        int bindex = btag % iBlockNum;
+        //Check if pc is in cache
+        if(iValid[bindex] && iTag[bindex] == btag) {
+            //Cache hit
+            return true;
+        }
+        else {  //Cache miss, set counter and replace block
+            memDelay = iBlockSize*CYCLES_PER_WORD;
+            iValid[bindex] = true;
+            iTag[bindex] = btag;
+            return false;
+        }
+    }
+    else if(memDelay > 0) { //Instruction was a cache miss, so we're counting down
+        memDelay--;
+        return false;
+    }
+    else {
+        memDelay = -1;
+        return pc < (int)instructions.size();
+    }
 }
 
 void Memory::readInstructions(std::string inst) {
@@ -79,6 +110,23 @@ void Memory::readData(std::string data) {
             std::bitset<8> b2(tmp2);
             count++;
             bitnum = 0;
+        }
+    }
+}
+
+void Memory::readCache(std::string config) {
+    std::ifstream in(config);
+    if(!in) {
+        perror("[MEM] Unable to open instruction file");
+        std::exit(EXIT_FAILURE);
+    }
+    std::string line;
+    while(std::getline(in, line)) {
+        if((n=ci_find_substr(line, std::string("I-Cache"))) != -1) {
+            std::string num = line.substr(n+8, line.find_first_of(",")-n-8);
+            std::string num2 = line.substr(line.find_first_of(",")+1);
+            iBlockNum = std::stoi(num);
+            iBlockSize = std::stoi(num2);
         }
     }
 }

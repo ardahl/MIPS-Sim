@@ -34,6 +34,7 @@ Pipeline::~Pipeline() {
 void Pipeline::run() {
     ifStage = NULL;
     stall = false;
+    cmiss = false;
     isStage = NULL;
     parsed = false;
     ifis1.insBuf = NULL;
@@ -77,6 +78,9 @@ void Pipeline::Fetch() {
             initInstMemory(ifStage);
             ifStage->line = line;
             ifStage->IFin = cycles;
+            if(cmiss) {
+                ifStage->iCacheHit = 'N';
+            }
             std::smatch match;
             //Parse just the instruction for tracking purposes
             if(std::regex_search(line, match, rgx)) {
@@ -84,16 +88,14 @@ void Pipeline::Fetch() {
             }
             fetched.push_back(ifStage);
             stall = false;
+            cmiss = false;
+        }
+        else {
+            cmiss = true;
         }
     }
-    else {  //If we're waiting with an instruction, mark it as a structural hazard
+    else {
         stall = true;
-        // if(ifStage != NULL) {
-        //     ifStage->struc = 'Y';
-        // }
-        // else {
-        //     ifis1.insBuf->struc = 'Y';
-        // }
     }
 
     //Move to the buffer.
@@ -138,7 +140,7 @@ void Pipeline::Issue() {
     }
     if(isStage != NULL) {
         //Parse instruction and if next buffer is free push it
-        //TODO: Deal with branching
+        //TODO: Make Halt end program execution here
         //Loop through each argument
             //If it's a register, set appropriate reg value
             //If it's an immediate value, set it
@@ -608,6 +610,7 @@ void Pipeline::printCycle(std::ofstream &f) {
     print(f, "RAW", 7);
     print(f, "WAW", 7);
     print(f, "Struct", 7);
+    print(f, "I-Cache", 8);
     f << std::endl;
     for(int i = 0; i < (int)fetched.size(); i++) {
         Instruction_t *struc = fetched[i];
@@ -636,6 +639,7 @@ void Pipeline::printCycle(std::ofstream &f) {
         print(f, struc->raw, 7);
         print(f, struc->waw, 7);
         print(f, struc->struc, 7);
+        print(f, struc->iCacheHit, 8);
         f << std::endl;
     }
     f << std::endl;
@@ -687,4 +691,5 @@ void Pipeline::initInstMemory(Instruction_t *ins) {
     ins->regDest = ins->regSource1 = ins->regSource2 = -1;
     ins->im = ins->memLoc = -1;
     ins->raw = ins->waw = ins->struc = 'N';
+    ins->iCacheHit = 'Y';
 }
