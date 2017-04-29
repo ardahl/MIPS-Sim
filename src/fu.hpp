@@ -3,6 +3,8 @@
 #include "memory.hpp"
 //Functional Units
 
+#define BUSY 100000 //Some large value that will never be the miss penelty amount
+
 class FunctionalUnit {
 protected:
     Instruction_t* inst;
@@ -11,17 +13,22 @@ protected:
 
 public:
     FunctionalUnit(Memory *m, int wait) { mem = m; cycles = count = wait; }
+    virtual ~FunctionalUnit();
     virtual bool running() { return --count; }             //Decrements counter. Returns false once counter is 0
     virtual void execute(Instruction_t* instruction)=0;     //Performs the operation
     virtual bool validOp(Ins in)=0;
     int count;
 };
 
+//TODO: Double words should do it one word at a time, since the bus may become busy
+//after the first word but before the second word
 class DataUnit: public FunctionalUnit {
 private:
     int fpcycles;
+    int word;
 public:
-    DataUnit(Memory *m, int cyclesInt, int cyclesFP): FunctionalUnit(m, cyclesInt), fpcycles(cyclesFP) {}
+    DataUnit(Memory *m, int cyclesInt, int cyclesFP): FunctionalUnit(m, cyclesInt), fpcycles(cyclesFP), word(0) {}
+    bool running();
     void execute(Instruction_t* instruction);
     bool validOp(Ins in);
 };

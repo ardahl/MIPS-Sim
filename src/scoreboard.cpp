@@ -1,9 +1,5 @@
 #include "scoreboard.hpp"
 
-Scoreboard::Scoreboard() {
-
-}
-
 Scoreboard::Scoreboard(std::string configUnits, Memory *m) {
     numData = 1;
     numInt = 1;
@@ -94,6 +90,23 @@ Scoreboard::Scoreboard(std::string configUnits, Memory *m) {
     }
 }
 
+Scoreboard::~Scoreboard() {
+    for(int i = 0; i < total; i++) {
+        delete FU[i];
+        op[i] = NULL;
+    }
+    delete[] FU;
+    delete[] busy;
+    delete[] op;
+    delete[] Fi;
+    delete[] Fj;
+    delete[] Fk;
+    delete[] Qj;
+    delete[] Qk;
+    delete[] Rj;
+    delete[] Rk;
+}
+
 //Returns false if it can't be issues, true if the issue succeeds
 //   wait until (!Busy[FU] AND !Result[dst]); // FU can be any functional unit that can execute operation op
 //   Busy[FU] ← Yes;
@@ -114,12 +127,12 @@ issue_t Scoreboard::attemptIssue(Instruction_t *instruct) {
         return true;
     }
     int dest = instruct->regDest;
-    if((ins != BNE && ins != BEQ) && WAW(unit, dest)) {
-        // printf("Failed: WAR %s\n", instruct->line.c_str());
-        // printf("RegInt[%d]: %s\n", dest, regInt[dest].c_str());
-        instruct->waw = 'Y';
-        return ISS_FAILED;
-    }
+    // if((ins != BNE && ins != BEQ) && WAW(unit, dest)) {
+    //     // printf("Failed: WAR %s\n", instruct->line.c_str());
+    //     // printf("RegInt[%d]: %s\n", dest, regInt[dest].c_str());
+    //     instruct->waw = 'Y';
+    //     return ISS_FAILED;
+    // }
 
     if(unit == "DATAI") {
         if(busy[0]) {
@@ -127,6 +140,10 @@ issue_t Scoreboard::attemptIssue(Instruction_t *instruct) {
             return ISS_FAILED;
         }
         else {
+            if(WAW(unit, dest)) {
+                instruct->waw = 'Y';
+                return ISS_FAILED;
+            }
             busy[0] = true;
             op[0] = instruct;
             Fi[0] = dest;
@@ -146,6 +163,10 @@ issue_t Scoreboard::attemptIssue(Instruction_t *instruct) {
             return ISS_FAILED;
         }
         else {
+            if(WAW(unit, dest)) {
+                instruct->waw = 'Y';
+                return ISS_FAILED;
+            }
             busy[0] = true;
             op[0] = instruct;
             Fi[0] = dest;
@@ -165,6 +186,10 @@ issue_t Scoreboard::attemptIssue(Instruction_t *instruct) {
             return ISS_FAILED;
         }
         else {
+            if((ins != BNE && ins != BEQ) && WAW(unit, dest)) {
+                instruct->waw = 'Y';
+                return ISS_FAILED;
+            }
             //Issue
             busy[1] = true;
             op[1] = instruct;
@@ -204,6 +229,10 @@ issue_t Scoreboard::attemptIssue(Instruction_t *instruct) {
             return ISS_FAILED;
         }
         else {
+            if(WAW(unit, dest)) {
+                instruct->waw = 'Y';
+                return ISS_FAILED;
+            }
             int index = getIndex(unit, 0);
             int i = 0;
             for(; i < numAdd; i++) {
@@ -232,6 +261,10 @@ issue_t Scoreboard::attemptIssue(Instruction_t *instruct) {
             return ISS_FAILED;
         }
         else {
+            if(WAW(unit, dest)) {
+                instruct->waw = 'Y';
+                return ISS_FAILED;
+            }
             int index = getIndex(unit, 0);
             int i = 0;
             for(; i < numMult; i++) {
@@ -260,6 +293,10 @@ issue_t Scoreboard::attemptIssue(Instruction_t *instruct) {
             return ISS_FAILED;
         }
         else {
+            if(WAW(unit, dest)) {
+                instruct->waw = 'Y';
+                return ISS_FAILED;
+            }
             int index = getIndex(unit, 0);
             int i = 0;
             for(; i < numDiv; i++) {

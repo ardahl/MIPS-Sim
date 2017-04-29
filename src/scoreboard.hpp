@@ -5,8 +5,8 @@
 
 class Scoreboard {
 public:
-    Scoreboard();
     Scoreboard(std::string configUnits, Memory *m);
+    ~Scoreboard();
     //For the Scoreboard
     issue_t attemptIssue(Instruction_t *instruct);
     bool canRead(Instruction_t *instruct);

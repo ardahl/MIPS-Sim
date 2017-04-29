@@ -5,19 +5,19 @@
 Pipeline::Pipeline() {
     pc = 0;
     cycles = 0;
-    running = false;
+    fetching = false;
     rgx = std::regex("\\s*([a-zA-Z]+\\.?[a-zA-Z]?)\\s+([a-zA-Z][0-9]|[a-zA-Z]+),?\\s*(-?[a-zA-Z0-9\\(\\)]*),?\\s*([a-zA-Z]*[0-9]*)?");
 }
 
 Pipeline::Pipeline(std::string inst, std::string data, std::string config, std::string out) {
-    mem = new Memory(inst, data);
+    mem = new Memory(inst, data, config);
     branches = mem->getBranches();
     pc = 0;
     cycles = 0;
-    running = true;
+    fetching = true;
     rgx = std::regex("\\s*([a-zA-Z]+\\.?[a-zA-Z]?)\\s+([a-zA-Z][0-9]|[a-zA-Z]+),?\\s*(-?[a-zA-Z0-9\\(\\)]*),?\\s*([a-zA-Z]*[0-9]*)?");
 
-    sb = Scoreboard(config, mem);
+    sb = new Scoreboard(config, mem);
 
     log.open(out);
     if(!log) {
@@ -28,15 +28,21 @@ Pipeline::Pipeline(std::string inst, std::string data, std::string config, std::
 
 Pipeline::~Pipeline() {
     log.close();
-    //Should probably clean up pointers (through fetched)
+    for(int i = 0; i < (int)fetched.size(); i++) {
+        delete fetched[i];
+    }
+    delete sb;
+    delete mem;
 }
 
 void Pipeline::run() {
     ifStage = NULL;
-    stall = false;
+    tmpPC = pc;
     cmiss = false;
     isStage = NULL;
     parsed = false;
+    branching = false;
+    waitForCache = false;
     ifis1.insBuf = NULL;
     ifis2.insBuf = NULL;
     ifisC = 0;
@@ -45,7 +51,7 @@ void Pipeline::run() {
     isrdC = 0;
     rdexC = 0;
     exwbC = 0;
-    while(running) {
+    while(running()) {
         cycles++;
         Fetch();
         Issue();
@@ -53,11 +59,14 @@ void Pipeline::run() {
         Exec();
         Write();
         printCycle(log);
-        sb.printSB(log);
-        if(!stall) {
-            pc++;
-        }
+        sb->printSB(log);
+        mem->printCache(log);
     }
+}
+
+//Returns true if there are still instructions in the pipeline
+bool Pipeline::running() {
+    return (fetching || ifStage != NULL || isStage != NULL || rdStage.size() > 0 || exStage.size() > 0 || wbStage.size() > 0);
 }
 
 //If there's not an instruction waiting, read in next instruction
@@ -65,9 +74,12 @@ void Pipeline::run() {
 //    If not empty, instruction in ID stage,
 void Pipeline::Fetch() {
     //If there's not an instruction sitting here already
-    if(ifStage == NULL && ifis1.insBuf == NULL) {
-        if(mem->availInstruction(pc)) { //make sure we don't read past the end
-            std::string line = mem->getInstruction(pc);
+    if(fetching && ifStage == NULL && ifis1.insBuf == NULL) {
+        if(!waitForCache) {
+            tmpPC = pc;
+        }
+        if(mem->availInstruction(tmpPC)) { //make sure we don't read past the end
+            std::string line = mem->getInstruction(tmpPC);
             //strip branch label if exists
             std::string::size_type n;
             if((n=line.find(":")) != std::string::npos) {
@@ -86,8 +98,20 @@ void Pipeline::Fetch() {
             if(std::regex_search(line, match, rgx)) {
                 ifStage->in = instToEnum(match[1].str());
             }
+            else if(line == "HLT") {
+                ifStage->in = HLT;
+            }
             fetched.push_back(ifStage);
-            stall = false;
+
+            if(!waitForCache) {
+                pc++;
+            }
+            else {
+                waitForCache = false;
+                ifStage->IFout = cycles;
+                ifStage = NULL;
+            }
+
             cmiss = false;
         }
         else {
@@ -95,7 +119,7 @@ void Pipeline::Fetch() {
         }
     }
     else {
-        stall = true;
+
     }
 
     //Move to the buffer.
@@ -168,8 +192,11 @@ void Pipeline::Issue() {
             parseInstruction(isStage);
             //Unconditional Jumps
             if(isStage->in == J && branches.count(isStage->label)) {
-                pc = branches[isStage->label]-1;    //pc is incremented after this, so decrement by 1
+                pc = branches[isStage->label];
                 //Clear everything from this stage back
+                if(mem->cacheBusy()) {
+                    waitForCache = true;
+                }
                 if(ifStage != NULL) {
                     ifStage->IFout = cycles;
                 }
@@ -178,28 +205,31 @@ void Pipeline::Issue() {
                 ifStage = NULL;
                 ifis1.insBuf = NULL;
                 ifis2.insBuf = NULL;
-                stall = false; //just in case
                 ifisC = 0;
             }
             parsed = true;
         }
         //Set Scoreboard values
-        issue_t t = sb.attemptIssue(isStage);
-        isStage->index = t;
-        if(t != ISS_FAILED) {
-            if(isrd1.insBuf == NULL) {
-                // isStage->ISout = cycles;
-                isrd1.insBuf = isStage;
-                isStage = NULL;
-                parsed = false;
-                if(isrdC == 0) {
-                    isrdC = 1;
+        if(isStage->in != HLT) {
+            issue_t t = sb->attemptIssue(isStage);
+            isStage->index = t;
+            if(t != ISS_FAILED) {
+                if(isrd1.insBuf == NULL && !branching) {
+                    // isStage->ISout = cycles;
+                    isrd1.insBuf = isStage;
+                    isStage = NULL;
+                    parsed = false;
+                    if(isrdC == 0) {
+                        isrdC = 1;
+                    }
                 }
             }
         }
-        // else {
-        //     isStage->struc = 'Y';
-        // }
+        else {
+            isStage->ISout = cycles;
+            isStage = NULL;
+            fetching = false;
+        }
     }
     if(ifisC == 1 && isStage == NULL) {
         ifisC = 2;
@@ -235,7 +265,10 @@ void Pipeline::Read() {
         std::vector<Instruction_t*> erase;
         for(int i = 0; i < (int)rdStage.size(); i++) {
             rdIns = rdStage[i];
-            if(sb.canRead(rdIns)) {
+            if(rdIns->in == BNE || rdIns->in == BEQ) {
+                branching  = true;
+            }
+            if(sb->canRead(rdIns)) {
                 //read in from register files
                 switch(rdIns->in) {
                     case DADD:
@@ -266,12 +299,13 @@ void Pipeline::Read() {
                         break;
                     case SD:
                         rdIns->F1 = fpRegisters[rdIns->regDest];
-                        rdIns->R2 = fpRegisters[rdIns->regSource1];
+                        rdIns->R2 = intRegisters[rdIns->regSource1];
                         break;
                     default:
                         break;
                 }
                 bool take = false;
+                branching = false;
                 if(rdIns->in == BNE || rdIns->in == BEQ) {
                     if(rdIns->in == BNE) {
                         take = rdIns->R2 != rdIns->R3;
@@ -282,9 +316,14 @@ void Pipeline::Read() {
                         printf("%d == %d\n", rdIns->R2, rdIns->R3);
                     }
                     if(take) {
-                        pc = branches[rdIns->label]-1;
+                        printf("PC: %d->", pc);
+                        pc = branches[rdIns->label];
+                        printf("%d\n", pc);
                         //clear out everything behind this
                         rdIns->RDout = cycles;
+                        if(mem->cacheBusy()) {
+                            waitForCache = true;
+                        }
                         erase.push_back(rdIns);
                         // rdIns = NULL;
                         if(isStage != NULL) {
@@ -301,7 +340,7 @@ void Pipeline::Read() {
                         ifis2.insBuf = NULL;
                         isrdC = 0;
                         ifisC = 0;
-                        stall = false;
+                        fetching = true;
                     }
                 }
                 if(!take) {
@@ -325,7 +364,7 @@ void Pipeline::Read() {
         if(erase.size() > 0) {
             int ecount = 0;
             for(std::vector<Instruction_t*>::iterator it = rdStage.begin(); it != rdStage.end();) {
-                if(*it == erase[ecount]) {
+                if(ecount < (int)erase.size() && *it != NULL && *it == erase[ecount]) {
                     it = rdStage.erase(it);
                     ecount++;
                 }
@@ -377,10 +416,10 @@ void Pipeline::Exec() {
         for(int i = 0; i < (int)exStage.size(); i++) {
             exIn = exStage[i];
             if(!exCycles[i]) {
-                exIndex[i] = sb.execute(exIn);
+                exIndex[i] = sb->execute(exIn);
                 exCycles[i] = true;
             }
-            if(!sb.running(exIndex[i])) {
+            if(!sb->running(exIndex[i])) {
                 exIn->EXout = cycles;
                 EXWB_t ew;
                 ew.insBuf = exIn;
@@ -458,7 +497,7 @@ void Pipeline::Write() {
         std::vector<Instruction_t*> erase;
         for(int i = 0; i < (int)wbStage.size(); i++) {
             wbIn = wbStage[i];
-            if(sb.canWrite(wbIn)) {
+            if(sb->canWrite(wbIn)) {
                 //Write results to register
                 switch(wbIn->in) {
                     case LI:
@@ -484,9 +523,9 @@ void Pipeline::Write() {
                     default:
                         break;
                 }
-                if(wbIn->in == HLT) {
-                    running = false;
-                }
+                // if(wbIn->in == HLT) {
+                //     running = false;
+                // }
                 wbIn->WBout = cycles;
                 erase.push_back(wbIn);
                 // wbIn = NULL;
@@ -610,7 +649,6 @@ void Pipeline::printCycle(std::ofstream &f) {
     print(f, "RAW", 7);
     print(f, "WAW", 7);
     print(f, "Struct", 7);
-    print(f, "I-Cache", 8);
     f << std::endl;
     for(int i = 0; i < (int)fetched.size(); i++) {
         Instruction_t *struc = fetched[i];
@@ -639,7 +677,6 @@ void Pipeline::printCycle(std::ofstream &f) {
         print(f, struc->raw, 7);
         print(f, struc->waw, 7);
         print(f, struc->struc, 7);
-        print(f, struc->iCacheHit, 8);
         f << std::endl;
     }
     f << std::endl;

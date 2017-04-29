@@ -1,5 +1,5 @@
-    LI R4, 266
-    LI R5, 274
+    LI R4, 260
+    LI R5, 272
     LI R1, 8
     LI R2, 4
     LI R3, 0
@@ -10,8 +10,8 @@ GG: L.D F1, 4(R4)
     MUL.D F6, F1, F5
     ADD.D F7, F2, F6
     ADD.D F6, F1, F7
-    DADDI R4, R4, 2
-    DADDI R5, R5, 2
+    DADDI R4, R4, 20
+    DADDI R5, R5, 8
     DSUB R1, R1, R2
     BNE R1, R3, GG
     HLT

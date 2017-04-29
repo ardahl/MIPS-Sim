@@ -20,12 +20,14 @@ private:
     void initInstMemory(Instruction_t *ins);
     void parseInstruction(Instruction_t *inst);
     void printCycle(std::ofstream &f);
+    bool running();
 
-    bool running;
+    // bool running;
+    bool fetching;
     int pc;     //Program counter
     int cycles; //Current number of cycles
     Memory* mem;
-    Scoreboard sb;
+    Scoreboard* sb;
     std::unordered_map<std::string, int> branches; //Map of branch label to program counter number
     int intRegisters[INT_REG];      //Array of 32 bit Integer registers
     double fpRegisters[FLOAT_REG];  //Array of 64 bit floating point registers
@@ -54,13 +56,15 @@ private:
     //loose the values for the next cycle
     //IF
     Instruction_t *ifStage;
-    bool stall;
     bool cmiss;
+    int tmpPC;
     //Issue
     Instruction_t *isStage;
     bool parsed;
     //Read
     std::vector<Instruction_t*> rdStage;
+    bool branching;
+    bool waitForCache;
     //Execute
     std::vector<Instruction_t*> exStage;
     std::vector<bool> exCycles;

@@ -8,19 +8,27 @@
 
 //An instruction is considered a word
 #define CYCLES_PER_WORD 3
+#define SET_NUMBER 2
+#define BLOCK_NUM 4
+#define BLOCKS_PER_SET 2
+#define WORDS_PER_BLOCK 4
 
 class Memory {
 public:
     Memory();
     Memory(std::string inst, std::string data, std::string config);
+    ~Memory();
 
-    bool write(int address, int data);
-    bool write(int address, double data);
-    bool read(int address, int &val);
-    bool readDouble(int address, double &val);
+    int write(int address, int data);
+    int write(int address, double data, int word);
+    int read(int address, int &val);
+    int readDouble(int address, double &val, int word);
     bool availInstruction(int pc);
     std::string getInstruction(int pc);
     std::unordered_map<std::string, int> getBranches() { return branches; }
+    bool cacheBusy();
+    void finishData();
+    void printCache(std::ofstream &f);
 
 private:
     std::vector<std::string> instructions;
@@ -37,8 +45,15 @@ private:
         //Don't need to store the actual data since it's just an index into an array
     bool *iValid;
     int *iTag;
+    bool iUsed;
 
     //D-Cache
+    //first level of pointers is for each set
+    //Second level it the set itself
+    bool **dValid;
+    int **dTag;
+    int *oldestIndex;
+    bool dUsed;
 
     void readInstructions(std::string inst);
     void readData(std::string data);
