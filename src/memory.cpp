@@ -245,7 +245,11 @@ int Memory::write(int address, int data) {
     byte_t *buf = new byte_t[WORD_SIZE];
     memcpy(buf, &data, WORD_SIZE);
     for(int i = 0; i < WORD_SIZE; i++) {
-        memory[i] = buf[index+i];
+        #if __BYTE_ORDER == __LITTLE_ENDIAN
+        memory[(index*WORD_SIZE+WORD_SIZE)-i-1] = buf[i];
+        #else
+        memory[index*WORD_SIZE+i] = buf[i];
+        #endif
     }
     return delay;
 }
@@ -307,7 +311,11 @@ int Memory::write(int address, double data, int word) {
         byte_t *buf = new byte_t[DOUBLE_WORD_SIZE];
         memcpy(buf, &data, DOUBLE_WORD_SIZE);
         for(int i = 0; i < DOUBLE_WORD_SIZE; i++) {
-            memory[i] = buf[index+i];
+            #if __BYTE_ORDER == __LITTLE_ENDIAN
+            memory[(index*WORD_SIZE+WORD_SIZE)-i-1] = buf[i];
+            #else
+            memory[index*WORD_SIZE+i] = buf[i];
+            #endif
         }
     }
     return delay;
@@ -371,8 +379,12 @@ int Memory::read(int address, int &val) {
     }
     byte_t *buf = new byte_t[WORD_SIZE];
     for(int i = 0; i < WORD_SIZE; i++) {
-        //Copy bytes in reverse order because of endianess
-        buf[WORD_SIZE-i-1] = memory[index+i];
+        #if __BYTE_ORDER == __LITTLE_ENDIAN
+        //Copy bytes in reverse order because of little endianess
+        buf[WORD_SIZE-i-1] = memory[index*WORD_SIZE+i];
+        #else
+        buf[i] = memory[index*WORD_SIZE+i];
+        #endif
     }
     memcpy(&val, buf, WORD_SIZE);
     return delay;
@@ -434,8 +446,12 @@ int Memory::readDouble(int address, double &val, int word) {
     if(word == 1) {
         byte_t *buf = new byte_t[DOUBLE_WORD_SIZE];
         for(int i = 0; i < DOUBLE_WORD_SIZE; i++) {
+            #if __BYTE_ORDER == __LITTLE_ENDIAN
             //Copy bytes in reverse order because of endianess
-            buf[DOUBLE_WORD_SIZE-i-1] = memory[index+i];
+            buf[DOUBLE_WORD_SIZE-i-1] = memory[index*WORD_SIZE+i];
+            #else
+            buf[i] = memory[index*WORD_SIZE+i];
+            #endif
         }
         //mash bits together in double
         memcpy(&val, buf, DOUBLE_WORD_SIZE);
