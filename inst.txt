@@ -15,3 +15,4 @@ GG: L.D F1, 4(R4)
     DSUB R1, R1, R2
     BNE R1, R3, GG
     HLT
+    HLT

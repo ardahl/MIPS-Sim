@@ -15,5 +15,6 @@ PP: LW     R3, 0(R4)
     DADD   R3, R4, R3
     SW     R3, 60(R4)
     DSUBI  R3, R3, 4
-    BEQ    R2, R3, PP 
+    BEQ    R2, R3, PP
+    HLT
     HLT

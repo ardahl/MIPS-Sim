@@ -12,6 +12,8 @@ Memory::Memory(std::string inst, std::string data, std::string config) {
     readInstructions(inst);
     readData(data);
     readCache(config);
+    iaccess = daccess = 0;
+    imisses = dmisses = 0;
     memDelay = -1;
     iUsed = false;
     dUsed = false;
@@ -36,6 +38,8 @@ Memory::Memory(std::string inst, std::string data, std::string config) {
 }
 
 Memory::~Memory() {
+    //Write results to memory
+
     delete[] iValid;
     delete[] iTag;
     delete[] oldestIndex;
@@ -56,12 +60,20 @@ bool Memory::availInstruction(int pc) {
     if(pc >= (int)instructions.size()) {
         return false;
     }
+    //Assuming well-formed program, last (2) instruction(s) is(are) always a Halt.
+    //The last halt doesn't cause a cache miss by assignment specification, it's an extra.
+    //So if pc is the last instruction, we can just return true.
+    if(pc == (int)instructions.size()-1) {
+        iaccess++;
+        return true;
+    }
     if(!iUsed) {   //New instruction to check for cache
         int btag = pc / iBlockSize;
         int bindex = btag % iBlockNum;
         //Check if pc is in cache
         if(iValid[bindex] && iTag[bindex] == btag) {
             //Cache hit
+            iaccess++;
             return true;
         }
         else {  //Cache miss, set counter and replace block
@@ -82,6 +94,8 @@ bool Memory::availInstruction(int pc) {
     else if(iUsed && memDelay == 0){
         memDelay = -1;
         iUsed = false;
+        iaccess++;
+        imisses++;
         return true;
     }
     return false;
@@ -112,6 +126,7 @@ void Memory::readInstructions(std::string inst) {
     in.close();
 
     //Testing
+    #ifndef NDEBUG
     std::cout << "Program:\n";
     for(int i = 0; i < (int)instructions.size(); i++) {
         std::cout << instructions[i] << "\n";
@@ -121,6 +136,7 @@ void Memory::readInstructions(std::string inst) {
         std::cout << pair.first << ": " << pair.second << "\n";
     }
     std::cout << "\n";
+    #endif
 }
 
 void Memory::readData(std::string data) {
@@ -190,6 +206,7 @@ int Memory::write(int address, int data) {
     for(int i = 0; i < BLOCK_NUM/SET_NUMBER; i++) {
         if(dValid[setInd][i] && dTag[setInd][i] == blockAdd) {
             inCache = true;
+            daccess++;
             break;
         }
     }
@@ -197,6 +214,8 @@ int Memory::write(int address, int data) {
         if(iUsed) {
             return -2;
         }
+        daccess++;
+        dmisses++;
         //find open spot in set
         int bind = -1;
         for(int i = 0; i < BLOCK_NUM/SET_NUMBER; i++) {
@@ -248,6 +267,7 @@ int Memory::write(int address, double data, int word) {
     for(int i = 0; i < BLOCK_NUM/SET_NUMBER; i++) {
         if(dValid[setInd][i] && dTag[setInd][i] == blockAdd) {
             inCache = true;
+            daccess++;
             break;
         }
     }
@@ -255,6 +275,8 @@ int Memory::write(int address, double data, int word) {
         if(iUsed) {
             return -2;
         }
+        daccess++;
+        dmisses++;
         //find open spot in set
         int bind = -1;
         for(int i = 0; i < BLOCK_NUM/SET_NUMBER; i++) {
@@ -311,6 +333,7 @@ int Memory::read(int address, int &val) {
     for(int i = 0; i < BLOCK_NUM/SET_NUMBER; i++) {
         if(dValid[setInd][i] && dTag[setInd][i] == blockAdd) {
             inCache = true;
+            daccess++;
             break;
         }
     }
@@ -319,6 +342,8 @@ int Memory::read(int address, int &val) {
         if(iUsed) {
             return -2;
         }
+        daccess++;
+        dmisses++;
         //find open spot in set
         int bind = -1;
         for(int i = 0; i < BLOCK_NUM/SET_NUMBER; i++) {
@@ -370,6 +395,7 @@ int Memory::readDouble(int address, double &val, int word) {
     for(int i = 0; i < BLOCK_NUM/SET_NUMBER; i++) {
         if(dValid[setInd][i] && dTag[setInd][i] == blockAdd) {
             inCache = true;
+            daccess++;
             break;
         }
     }
@@ -377,6 +403,8 @@ int Memory::readDouble(int address, double &val, int word) {
         if(iUsed) {
             return -2;
         }
+        daccess++;
+        dmisses++;
         //find open spot in set
         int bind = -1;
         for(int i = 0; i < BLOCK_NUM/SET_NUMBER; i++) {

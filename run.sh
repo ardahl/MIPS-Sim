@@ -1,2 +1,2 @@
 #!/bin/bash
-./pipeline inst2.txt data.txt config.txt out.txt
+./simulator inst.txt data.txt config.txt out.txt

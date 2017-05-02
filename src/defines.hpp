@@ -53,7 +53,8 @@ typedef int issue_t;
 //And has variables for each argument and possible parsing of it
 //Not every value is used for every instruction, only the relevant ones are set
 typedef struct InsType {
-    std::string line;
+    std::string fetchedRaw;         //Line as fetched from memory, including all spaces/tabs
+    std::string line;               //trimmed version of fetchedRaw
     Ins in;                         //Enum for instruction type
     std::vector<std::string> args;  //Up to 3 instruction arguments
     int regDest;

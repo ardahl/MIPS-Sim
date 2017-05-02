@@ -29,12 +29,16 @@ public:
     bool cacheBusy();
     void finishData();
     void printCache(std::ofstream &f);
+    void getNumberAccesses(int &iCache, int &dCache) { iCache = iaccess; dCache = daccess; }
+    void getNumberMisses(int &iCache, int &dCache) { iCache = imisses; dCache = dmisses; }
 
 private:
     std::vector<std::string> instructions;
     byte_t memory[MEM_SIZE];
     std::unordered_map<std::string, int> branches;
     std::string lastInst;
+    int iaccess, imisses;
+    int daccess, dmisses;
     int memDelay;
     int iBlockNum, iBlockSize;
 

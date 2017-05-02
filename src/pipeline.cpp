@@ -58,10 +58,15 @@ void Pipeline::run() {
         Read();
         Exec();
         Write();
+        #ifndef NDEBUG
         printCycle(log);
         sb->printSB(log);
         mem->printCache(log);
+        #endif
     }
+    //Set ending cycle of last instruction (second HLT)
+    fetched[fetched.size()-1]->IFout = cycles;
+    printCycle(log);
 }
 
 //Returns true if there are still instructions in the pipeline
@@ -80,6 +85,7 @@ void Pipeline::Fetch() {
         }
         if(mem->availInstruction(tmpPC)) { //make sure we don't read past the end
             std::string line = mem->getInstruction(tmpPC);
+            std::string raw = line;
             //strip branch label if exists
             std::string::size_type n;
             if((n=line.find(":")) != std::string::npos) {
@@ -88,6 +94,7 @@ void Pipeline::Fetch() {
             line = trim(line);
             ifStage = new Instruction_t;
             initInstMemory(ifStage);
+            ifStage->fetchedRaw = raw;
             ifStage->line = line;
             ifStage->IFin = cycles;
             if(cmiss) {
@@ -309,16 +316,24 @@ void Pipeline::Read() {
                 if(rdIns->in == BNE || rdIns->in == BEQ) {
                     if(rdIns->in == BNE) {
                         take = rdIns->R2 != rdIns->R3;
+                        #ifndef NDEBUG
                         printf("%d != %d\n", rdIns->R2, rdIns->R3);
+                        #endif
                     }
                     else {
                         take = rdIns->R2 == rdIns->R3;
+                        #ifndef NDEBUG
                         printf("%d == %d\n", rdIns->R2, rdIns->R3);
+                        #endif
                     }
                     if(take) {
+                        #ifndef NDEBUG
                         printf("PC: %d->", pc);
+                        #endif
                         pc = branches[rdIns->label];
+                        #ifndef NDEBUG
                         printf("%d\n", pc);
+                        #endif
                         //clear out everything behind this
                         rdIns->RDout = cycles;
                         if(mem->cacheBusy()) {
@@ -639,8 +654,8 @@ void Pipeline::parseInstruction(Instruction_t *inst) {
 
 void Pipeline::printCycle(std::ofstream &f) {
     //Loop through every fetched instruction and print out the info
-    f << "Cycle " << cycles << "\n";
-    print(f, "Ins", 8);
+    // f << "Cycle " << cycles << "\n";
+    print(f, "Instruction", 24);
     print(f, "Fetch", 8);
     print(f, "Issue", 8);
     print(f, "Read", 8);
@@ -652,22 +667,43 @@ void Pipeline::printCycle(std::ofstream &f) {
     f << std::endl;
     for(int i = 0; i < (int)fetched.size(); i++) {
         Instruction_t *struc = fetched[i];
-        print(f, enumToInst(struc->in), 8);
+        // print(f, enumToInst(struc->in), 8);
+        print(f, struc->fetchedRaw, 24);
         std::string fetch, issue, read, exe, write;
         if(struc->IFin != -1) {
+            #ifndef NDEBUG
             fetch = std::to_string(struc->IFin) + "," + std::to_string(struc->IFout);
+            #else
+            fetch = std::to_string(struc->IFout);
+            #endif
         }
         if(struc->ISin != -1) {
+            #ifndef NDEBUG
             issue = std::to_string(struc->ISin) + "," + std::to_string(struc->ISout);
+            #else
+            issue = std::to_string(struc->ISout);
+            #endif
         }
         if(struc->RDin != -1) {
+            #ifndef NDEBUG
             read = std::to_string(struc->RDin) + "," + std::to_string(struc->RDout);
+            #else
+            read = std::to_string(struc->RDout);
+            #endif
         }
         if(struc->EXin != -1) {
+            #ifndef NDEBUG
             exe = std::to_string(struc->EXin) + "," + std::to_string(struc->EXout);
+            #else
+            exe = std::to_string(struc->EXout);
+            #endif
         }
         if(struc->WBin != -1) {
+            #ifndef NDEBUG
             write = std::to_string(struc->WBin) + "," + std::to_string(struc->WBout);
+            #else
+            write = std::to_string(struc->WBout);
+            #endif
         }
         print(f, fetch, 8);
         print(f, issue, 8);
@@ -680,7 +716,15 @@ void Pipeline::printCycle(std::ofstream &f) {
         f << std::endl;
     }
     f << std::endl;
-    //Print buffers
+    int isize, imiss, dsize, dmiss;
+    mem->getNumberAccesses(isize, dsize);
+    mem->getNumberMisses(imiss, dmiss);
+    f << "Total number of access requests for instruction cache: " << isize << std::endl;
+    f << "Number of instruction cache hits: " << isize-imiss << std::endl;
+    f << "Total number of access requests for data cache: " << dsize << std::endl;
+    f << "Number of data cache hits: " << dsize-dmiss << std::endl << std::endl;
+    #ifndef NDEBUG
+    // Print buffers
     f << "IFIS: ";
     std::string ifis, isrd, rdex, exwb;
     if(ifis1.insBuf != NULL) {
@@ -719,6 +763,7 @@ void Pipeline::printCycle(std::ofstream &f) {
     }
     print(f, exwb, 8);
     f << std::endl << std::endl;
+    #endif
 }
 
 void Pipeline::initInstMemory(Instruction_t *ins) {
