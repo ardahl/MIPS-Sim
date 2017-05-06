@@ -65,13 +65,18 @@ void Pipeline::run() {
         #endif
     }
     //Set ending cycle of last instruction (second HLT)
-    fetched[fetched.size()-1]->IFout = cycles;
+    //Other instructions could still be running, so do this only if not set
+    if(fetched[fetched.size()-1]->IFout == -1) {
+        fetched[fetched.size()-1]->IFout = cycles;
+    }
     printCycle(log);
 }
 
 //Returns true if there are still instructions in the pipeline
 bool Pipeline::running() {
-    return (fetching || ifStage != NULL || isStage != NULL || rdStage.size() > 0 || exStage.size() > 0 || wbStage.size() > 0);
+    return (fetching || ifStage != NULL || isStage != NULL || rdStage.size() > 0 || exStage.size() > 0 || wbStage.size() > 0 ||
+            ifis1.insBuf != NULL || ifis2.insBuf != NULL || isrd1.insBuf != NULL || isrd2.insBuf != NULL || rdex1.size() > 0 ||
+            rdex2.size() > 0 || exwb1.size() > 0 || exwb2.size() > 0);
 }
 
 //If there's not an instruction waiting, read in next instruction
@@ -171,7 +176,6 @@ void Pipeline::Issue() {
     }
     if(isStage != NULL) {
         //Parse instruction and if next buffer is free push it
-        //TODO: Make Halt end program execution here
         //Loop through each argument
             //If it's a register, set appropriate reg value
             //If it's an immediate value, set it
@@ -222,7 +226,6 @@ void Pipeline::Issue() {
             isStage->index = t;
             if(t != ISS_FAILED) {
                 if(isrd1.insBuf == NULL && !branching) {
-                    // isStage->ISout = cycles;
                     isrd1.insBuf = isStage;
                     isStage = NULL;
                     parsed = false;
@@ -236,6 +239,20 @@ void Pipeline::Issue() {
             isStage->ISout = cycles;
             isStage = NULL;
             fetching = false;
+            //if fetching got a second halt, remove that as well-formed
+            if(ifStage != NULL && ifStage->in == HLT) {
+                ifStage->IFout = cycles;
+                ifStage = NULL;
+            }
+            //check buffers as well
+            if(ifis1.insBuf != NULL && ifis1.insBuf->in == HLT) {
+                ifis1.insBuf->IFout = cycles;
+                ifis1.insBuf = NULL;
+            }
+            if(ifis2.insBuf != NULL && ifis2.insBuf->in == HLT) {
+                ifis2.insBuf->IFout = cycles;
+                ifis2.insBuf = NULL;
+            }
         }
     }
     if(ifisC == 1 && isStage == NULL) {
@@ -252,7 +269,6 @@ void Pipeline::Issue() {
 //   Rk[FU] ← No;
 void Pipeline::Read() {
     if(isrdC == 2  && isrd2.insBuf != NULL) {
-        // rdStage = isrd2.insBuf;
         isrd2.insBuf->ISout = cycles-1;
         isrd2.insBuf->RDin = cycles;
         rdStage.push_back(isrd2.insBuf);
@@ -264,10 +280,7 @@ void Pipeline::Read() {
             isrdC = 1;
         }
     }
-    // if(rdStage != NULL) {
     if(rdStage.size() > 0) {
-        //TODO: Buffer of instructions for read, exec, and write
-        //TODO: Maybe move switch to here, might prevent WAR hazzards with multiple instructions?
         Instruction_t *rdIns;
         std::vector<Instruction_t*> erase;
         for(int i = 0; i < (int)rdStage.size(); i++) {
@@ -335,12 +348,9 @@ void Pipeline::Read() {
                         printf("%d\n", pc);
                         #endif
                         //clear out everything behind this
-                        rdIns->RDout = cycles;
                         if(mem->cacheBusy()) {
                             waitForCache = true;
                         }
-                        erase.push_back(rdIns);
-                        // rdIns = NULL;
                         if(isStage != NULL) {
                             isStage->ISout = cycles;
                         }
@@ -357,14 +367,15 @@ void Pipeline::Read() {
                         ifisC = 0;
                         fetching = true;
                     }
-                }
-                if(!take) {
+                    //No matter what, the branch instruction doesn't continue
+                    erase.push_back(rdIns);
                     rdIns->RDout = cycles;
-                    // rdex1.insBuf = rdStage;
+                }
+                if(!take && (rdIns->in != BNE && rdIns->in != BEQ)) {
+                    rdIns->RDout = cycles;
                     RDEX_t re;
                     re.insBuf = rdIns;
                     rdex1.push_back(re);
-                    // rdStage = NULL;
                     erase.push_back(rdIns);
                     if(rdexC == 0) {
                         rdexC = 1;
@@ -390,7 +401,6 @@ void Pipeline::Read() {
             erase.clear();
         }
     }
-    // if(isrdC == 1 && rdStage == NULL) {
     if(isrdC == 1) {
         isrdC = 2;
         isrd2 = isrd1;
@@ -402,29 +412,22 @@ void Pipeline::Read() {
 //function execute(FU)
    // Execute whatever FU must do
 void Pipeline::Exec() {
-    // if(rdexC == 2 && exStage == NULL) {
     if(rdexC == 2) {
-        // exStage = rdex2.insBuf;
         for(int i = 0; i < (int)rdex2.size(); i++) {
             exStage.push_back(rdex2[i].insBuf);
             exStage[exStage.size()-1]->EXin = cycles;
             exCycles.push_back(false);
             exIndex.push_back(-1);
         }
-        // exStage->EXin = cycles;
-        // rdex2.insBuf = NULL;
         rdex2.clear();
-        // if(rdex1.insBuf == NULL) {
         if(rdex1.size() == 0) {
             rdexC = 0;
         }
         else {
             rdexC = 1;
         }
-        // exCycles = false;
     }
     //Loop Through each functional unit and perform the operation if available
-    // if(exStage != NULL) {
     if(exStage.size() > 0) {
         Instruction_t *exIn;
         std::vector<Instruction_t*> erase;
@@ -439,8 +442,6 @@ void Pipeline::Exec() {
                 EXWB_t ew;
                 ew.insBuf = exIn;
                 exwb1.push_back(ew);
-                // exwb1.insBuf = exStage;
-                // exStage = NULL;
                 erase.push_back(exIn);
                 if(exwbC == 0) {
                     exwbC = 1;
@@ -469,11 +470,9 @@ void Pipeline::Exec() {
             erase.clear();
         }
     }
-    // if(rdexC == 1 && exStage == NULL) {
     if(rdexC == 1) {
         rdexC = 2;
         rdex2 = rdex1;
-        // rdex1.insBuf = NULL;
         rdex1.clear();
     }
 }
@@ -488,17 +487,12 @@ void Pipeline::Exec() {
 //   Busy[FU] ← No;
 void Pipeline::Write() {
     //Write result to register or memory
-    // if(exwbC == 2 && wbStage == NULL) {
     if(exwbC == 2) {
-        // wbStage = exwb2.insBuf;
-        // wbStage->WBin = cycles;
         for(int i = 0; i < (int)exwb2.size(); i++) {
             wbStage.push_back(exwb2[i].insBuf);
             wbStage[wbStage.size()-1]->WBin = cycles;
         }
-        // exwb2.insBuf = NULL;
         exwb2.clear();
-        // if(exwb1.insBuf == NULL) {
         if(exwb1.size() == 0) {
             exwbC = 0;
         }
@@ -506,7 +500,6 @@ void Pipeline::Write() {
             exwbC = 1;
         }
     }
-    // if(wbStage != NULL) {
     if(wbStage.size() > 0) {
         Instruction_t *wbIn;
         std::vector<Instruction_t*> erase;
@@ -538,12 +531,8 @@ void Pipeline::Write() {
                     default:
                         break;
                 }
-                // if(wbIn->in == HLT) {
-                //     running = false;
-                // }
                 wbIn->WBout = cycles;
                 erase.push_back(wbIn);
-                // wbIn = NULL;
             }
         }
         //remove finished instructions
@@ -561,11 +550,9 @@ void Pipeline::Write() {
             erase.clear();
         }
     }
-    // if(exwbC == 1 && wbStage == NULL) {
     if(exwbC == 1) {
         exwbC = 2;
         exwb2 = exwb1;
-        // exwb1.insBuf = NULL;
         exwb1.clear();
     }
 }
@@ -581,7 +568,6 @@ void Pipeline::parseInstruction(Instruction_t *inst) {
         case LUI:
             dest = std::stoi(args[0].substr(1));
             imm = std::stoi(args[1]);
-            // printf("Ins: %s, Dest: %d, Imm: %d\n", enumToInst(in).c_str(), dest, imm);
             inst->regDest = dest;
             inst->im = imm;
             break;
@@ -594,7 +580,6 @@ void Pipeline::parseInstruction(Instruction_t *inst) {
             pos = args[1].find_first_of("(");
             offset = std::stoi(args[1].substr(0, pos));
             s1 = std::stoi(args[1].substr(pos+2, args[1].size()-pos-1));
-            // printf("Ins: %s, Dest: %d, Offset: %d, Reg: %d\n", enumToInst(in).c_str(), dest, offset, s);
             inst->regDest = dest;
             inst->memLoc = offset;
             inst->regSource1 = s1;
@@ -611,7 +596,6 @@ void Pipeline::parseInstruction(Instruction_t *inst) {
             dest = std::stoi(args[0].substr(1));
             s1 = std::stoi(args[1].substr(1));
             s2 = std::stoi(args[2].substr(1));
-            // printf("Ins: %s, Dest: %d, S1: %d, S2: %d\n", enumToInst(in).c_str(), dest, s1, s2);
             inst->regDest = dest;
             inst->regSource1 = s1;
             inst->regSource2 = s2;
@@ -624,7 +608,6 @@ void Pipeline::parseInstruction(Instruction_t *inst) {
             dest = std::stoi(args[0].substr(1));
             s1 = std::stoi(args[1].substr(1));
             imm = std::stoi(args[2]);
-            // printf("Ins: %s, Dest: %d, S1: %d, Imm: %d\n", enumToInst(in).c_str(), dest, s1, imm);
             inst->regDest = dest;
             inst->regSource1 = s1;
             inst->im = imm;
@@ -632,7 +615,6 @@ void Pipeline::parseInstruction(Instruction_t *inst) {
         //label
         case J:
             label = args[0];
-            // printf("Ins: %s, Label: %s\n", enumToInst(in).c_str(), label.c_str());
             inst->label = label;
             break;
         //2 Reg and label
@@ -641,20 +623,20 @@ void Pipeline::parseInstruction(Instruction_t *inst) {
             s1 = std::stoi(args[0].substr(1));
             s2 = std::stoi(args[1].substr(1));
             label = args[2];
-            // printf("Ins: %s, S1: %d, S2: %d, Label: %s\n", enumToInst(in).c_str(), s1, s2, label.c_str());
             inst->regSource1 = s1;
             inst->regSource2 = s2;
             inst->label = label;
             break;
         default:
-            // printf("Ins: %s\n", enumToInst(in).c_str());
             break;
     }
 }
 
 void Pipeline::printCycle(std::ofstream &f) {
     //Loop through every fetched instruction and print out the info
-    // f << "Cycle " << cycles << "\n";
+    #ifndef NDEBUG
+    f << "Cycle " << cycles << "\n";
+    #endif
     print(f, "Instruction", 24);
     print(f, "Fetch", 8);
     print(f, "Issue", 8);

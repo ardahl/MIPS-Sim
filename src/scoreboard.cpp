@@ -140,20 +140,31 @@ issue_t Scoreboard::attemptIssue(Instruction_t *instruct) {
             return ISS_FAILED;
         }
         else {
-            if(WAW(unit, dest)) {
+            if(instruct->in != SW && WAW(unit, dest)) {
                 instruct->waw = 'Y';
                 return ISS_FAILED;
             }
             busy[0] = true;
             op[0] = instruct;
-            Fi[0] = dest;
-            Fj[0] = instruct->regSource1;
-            Fk[0] = -1;
-            Qj[0] = regInt[instruct->regSource1];
-            Qk[0] = "";
-            Rj[0] = Qj[0].empty();
-            Rk[0] = true;
-            regInt[dest] = unit+std::to_string(0);
+            if(instruct->in != SW) {    //LW
+                Fi[0] = dest;
+                Fj[0] = instruct->regSource1;
+                Fk[0] = -1;
+                Qj[0] = regInt[instruct->regSource1];
+                Qk[0] = "";
+                Rj[0] = Qj[0].empty();
+                Rk[0] = true;
+                regInt[dest] = unit+std::to_string(0);
+            }
+            else {                      //SW
+                Fi[0] = -1;
+                Fj[0] = dest;
+                Fk[0] = instruct->regSource1;
+                Qj[0] = regInt[dest];
+                Qk[0] = regInt[instruct->regSource1];
+                Rj[0] = Qj[0].empty();
+                Rk[0] = Qk[0].empty();
+            }
             return 0;
         }
     }
@@ -163,20 +174,31 @@ issue_t Scoreboard::attemptIssue(Instruction_t *instruct) {
             return ISS_FAILED;
         }
         else {
-            if(WAW(unit, dest)) {
+            if(instruct->in != SD && WAW(unit, dest)) {
                 instruct->waw = 'Y';
                 return ISS_FAILED;
             }
             busy[0] = true;
             op[0] = instruct;
-            Fi[0] = dest;
-            Fj[0] = instruct->regSource1;
-            Fk[0] = -1;
-            Qj[0] = regFloat[instruct->regSource1];
-            Qk[0] = "";
-            Rj[0] = Qj[0].empty();
-            Rk[0] = true;
-            regFloat[dest] = unit+std::to_string(0);
+            if(instruct->in != SD) {    //LD
+                Fi[0] = dest;
+                Fj[0] = instruct->regSource1;
+                Fk[0] = -1;
+                Qj[0] = regInt[instruct->regSource1];
+                Qk[0] = "";
+                Rj[0] = Qj[0].empty();
+                Rk[0] = true;
+                regFloat[dest] = unit+std::to_string(0);
+            }
+            else {                      //SD
+                Fi[0] = -1;
+                Fj[0] = dest;
+                Fk[0] = instruct->regSource1;
+                Qj[0] = regFloat[dest];
+                Qk[0] = regInt[instruct->regSource1];
+                Rj[0] = Qj[0].empty();
+                Rk[0] = Qk[0].empty();
+            }
             return 0;
         }
     }
