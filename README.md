@@ -5,59 +5,58 @@ This repo is for a class project to implement a simulation of the MIPS architect
 ### Instruction Set ###
 Data Transfer:
 
-* LW $d, i($s)  - Load word (4 bytes), $d = MEM[$s + i]:4
+* LW $d, i($s)&nbsp;&nbsp;- Load word (4 bytes), $d = MEM[$s + i]:4
 
-* SW $d, i($s)  - Save word (4 bytes), MEM[$s + i]:4 = $d
+* SW $d, i($s)&nbsp;&nbsp;- Save word (4 bytes), MEM[$s + i]:4 = $d
 
-* L.D $d, i(%s) - Load floating point (8 bytes), $d = MEM[$s + i]:8
+* L.D $d, i(%s)&nbsp;- Load floating point (8 bytes), $d = MEM[$s + i]:8
 
-* S.D $d, i(%s) - Save floating point (8 bytes), MEM[$s + i]:4 = $d
+* S.D $d, i(%s)&nbsp;- Save floating point (8 bytes), MEM[$s + i]:4 = $d
 
 
 Control:
 
-* J label - Unconditional jump to branch label
+* J label&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- Unconditional jump to branch label
 
-* BEQ $s, $t, label - Branch on equal, if($s == $t) jump to label
+* BEQ $s, $t, label&nbsp;- Branch on equal, if($s == $t) jump to label
 
-* BNE $s, $t, label - Branch on not equal, if($s != $t) jump to label
+* BNE $s, $t, label&nbsp;- Branch on not equal, if($s != $t) jump to label
 
 
 Arithmetic/Logic:
 
-* DADD $d, $s, $t  - Add, $d = $s + $t
+* DADD $d, $s, $t&nbsp;&nbsp;- Add, $d = $s + $t
 
-* DADDI $d, $s, i  - Add Immediate, $d = $s + i
+* DADDI $d, $s, i&nbsp;&nbsp;&nbsp;&nbsp;- Add Immediate, $d = $s + i
 
-* DSUB $d, $s, $t  - Subtract, $d = $s - $t
+* DSUB $d, $s, $t&nbsp;&nbsp;- Subtract, $d = $s - $t
 
-* DSUBI $d, $s, i  - Subtract Immediate, $d = $s - i
+* DSUBI $d, $s, i&nbsp;&nbsp;&nbsp;&nbsp;- Subtract Immediate, $d = $s - i
 
-* AND $d, $s, $t   - Bitwise And, $d = $s & $t
+* AND $d, $s, $t&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- Bitwise And, $d = $s & $t
 
-* ANDI $d, $s, i   - Bitwise And Immediate, $d = $s & i
+* ANDI $d, $s, i&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- Bitwise And Immediate, $d = $s & i
 
-* OR $d, $s, $t    - Bitwise Or, $d = $s | $t
+* OR $d, $s, $t&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- Bitwise Or, $d = $s | $t
 
-* ORI $d, $s, i    - Bitwise Or Immediate, $d = $s | i
+* ORI $d, $s, i&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- Bitwise Or Immediate, $d = $s | i
 
-* LI $d, i         - Load Immediate, $d = i
+* LI $d, i&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- Load Immediate, $d = i
 
-* LUI $d, i        - Load Upper Immediate (load i into upper 16 bits), $d = i << 16
+* LUI $d, i&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- Load Upper Immediate (load i into upper 16 bits), $d = i << 16
 
-* ADD.D $d, $s, $t - Floating Point Add, $d = $s + $t
+* ADD.D $d, $s, $t&nbsp;- Floating Point Add, $d = $s + $t
 
-* MUL.D $d, $s, $t - Floating Point Multiply, $d = $s * $t
+* MUL.D $d, $s, $t&nbsp;- Floating Point Multiply, $d = $s * $t
 
-* DIV.D $d, $s, $t - Floating Point Division, $d = $s / $t
+* DIV.D $d, $s, $t&nbsp;&nbsp;- Floating Point Division, $d = $s / $t
 
-* SUB.D $d, $s, $t - Floating Point Subtraction, $d = $s - $t
+* SUB.D $d, $s, $t&nbsp;- Floating Point Subtraction, $d = $s - $t
 
 
 Special:
 
 * HLT - Halts program execution
-
 
 ### Input Formats ###
 To run: ./simulator inst.txt data.txt config.txt result.txt
